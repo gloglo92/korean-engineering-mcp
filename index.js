@@ -4,15 +4,50 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { readFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
-import { dirname, join } from "path";
+import { dirname, join, resolve } from "path";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf-8"));
+
+// ── .env 로딩 (실행 디렉터리 기준, 이미 설정된 환경변수는 유지) ──
+export function parseDotEnv(content) {
+  const out = {};
+  for (const rawLine of String(content).split("\n")) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq <= 0) continue;
+    const key = line.slice(0, eq).trim();
+    let value = line.slice(eq + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
+function loadDotEnv() {
+  const envPath = resolve(process.cwd(), ".env");
+  if (!existsSync(envPath)) return;
+  try {
+    const parsed = parseDotEnv(readFileSync(envPath, "utf-8"));
+    for (const [k, v] of Object.entries(parsed)) {
+      if (process.env[k] === undefined) process.env[k] = v;
+    }
+  } catch {
+    // .env는 선택사항이므로 읽기 실패는 무시
+  }
+}
+loadDotEnv();
 
 const KCSC_KEY = process.env.KCSC_API_KEY || "";
 const LAW_KEY  = process.env.LAW_API_KEY  || "";
 const KCSC_BASE = "https://kcsc.re.kr/OpenApi";
 const LAW_BASE  = "https://www.law.go.kr/DRF";
+const FETCH_TIMEOUT_MS = Number(process.env.FETCH_TIMEOUT_MS) || 15000;
 
 // ── 로컬 설계기준 해설편 ──────────────────────────────────────
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const REFERENCE_DIR = process.env.REFERENCE_DIR || __dirname;
 
 const REFERENCE_FILES = {
@@ -21,22 +56,28 @@ const REFERENCE_FILES = {
 };
 
 // 파일을 마크다운 헤더(#) 단위 섹션으로 분할
-function parseSections(content) {
+export function parseSections(content) {
   const lines = content.split("\n");
   const sections = [];
   let title = "(서두)";
   let body = [];
+  let started = false;
 
   for (const line of lines) {
     if (/^#{1,4}\s/.test(line)) {
-      if (body.length) sections.push({ title, content: body.join("\n").trim() });
+      if (started || body.some((l) => l.trim())) {
+        sections.push({ title, content: body.join("\n").trim() });
+      }
       title = line.replace(/^#+\s*/, "").trim();
-      body = [line];
+      body = [];
+      started = true;
     } else {
       body.push(line);
     }
   }
-  if (body.length) sections.push({ title, content: body.join("\n").trim() });
+  if (started || body.some((l) => l.trim())) {
+    sections.push({ title, content: body.join("\n").trim() });
+  }
   return sections;
 }
 
@@ -49,14 +90,40 @@ for (const [name, filePath] of Object.entries(REFERENCE_FILES)) {
   }
 }
 
+async function fetchWithTimeout(url) {
+  try {
+    return await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+  } catch (error) {
+    if (error?.name === "TimeoutError" || error?.name === "AbortError") {
+      throw new Error(`외부 API 응답 시간 초과 (${FETCH_TIMEOUT_MS}ms)`);
+    }
+    throw error;
+  }
+}
+
 // ── KCSC API ──────────────────────────────────────────────────
+const CODELIST_CACHE_TTL_MS = 60 * 60 * 1000; // 1시간
+let codeListCache = { data: null, fetchedAt: 0 };
+
 async function fetchKCSC(path) {
   requireApiKey("KCSC_API_KEY", KCSC_KEY);
   const sep = path.includes("?") ? "&" : "?";
-  const url = `${KCSC_BASE}${path}${sep}key=${KCSC_KEY}`;
-  const res = await fetch(url);
+  const url = `${KCSC_BASE}${path}${sep}key=${encodeURIComponent(KCSC_KEY)}`;
+  const res = await fetchWithTimeout(url);
   if (!res.ok) throw new Error(`KCSC API 오류: ${res.status}`);
   return res.json();
+}
+
+// 전체 기준 목록은 크고 자주 쓰이므로 TTL 캐시 적용
+async function getCodeList() {
+  const now = Date.now();
+  if (codeListCache.data && now - codeListCache.fetchedAt < CODELIST_CACHE_TTL_MS) {
+    return codeListCache.data;
+  }
+  const data = await fetchKCSC("/CodeList");
+  const list = Array.isArray(data) ? data : [];
+  codeListCache = { data: list, fetchedAt: now };
+  return list;
 }
 
 // ── 법제처 API ────────────────────────────────────────────────
@@ -68,12 +135,22 @@ async function fetchLaw(endpoint, params = {}) {
   for (const [k, v] of Object.entries(params)) {
     url.searchParams.set(k, String(v));
   }
-  const res = await fetch(url.toString());
+  const res = await fetchWithTimeout(url.toString());
   if (!res.ok) throw new Error(`법제처 API 오류: ${res.status}`);
-  return res.json();
+  // 법제처는 OC 키가 잘못돼도 HTTP 200으로 HTML 오류 페이지를 반환할 수 있음
+  const text = await res.text();
+  const trimmed = text.trimStart();
+  if (trimmed.startsWith("<")) {
+    throw new Error("법제처 API가 JSON 대신 HTML을 반환했습니다. LAW_API_KEY(OC 인증키)가 유효한지, open.law.go.kr에서 해당 API 활용 신청이 승인됐는지 확인하세요.");
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error("법제처 API 응답을 JSON으로 해석할 수 없습니다. 잠시 후 재시도하거나 검색어를 바꿔보세요.");
+  }
 }
 
-function stripHtml(html) {
+export function stripHtml(html) {
   if (!html) return "";
   return html
     .replace(/<[^>]+>/g, "")
@@ -87,7 +164,7 @@ function stripHtml(html) {
 }
 
 // 법제처 JSON 응답에서 배열 추출 (키 이름이 버전마다 다를 수 있음)
-function extractList(obj, ...keys) {
+export function extractList(obj, ...keys) {
   for (const key of keys) {
     if (!obj) continue;
     const val = obj[key];
@@ -101,11 +178,11 @@ function requireApiKey(name, value) {
   if (!value) throw new Error(`${name} 환경변수가 설정되지 않았습니다. .env 또는 MCP 설정 env에 값을 넣어주세요.`);
 }
 
-function escapeRegExp(value) {
+export function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function keywordsFrom(text) {
+export function keywordsFrom(text) {
   return String(text || "")
     .replace(/["'“”‘’()[\]{}]/g, " ")
     .split(/\s+/)
@@ -113,12 +190,12 @@ function keywordsFrom(text) {
     .filter((x) => x.length >= 2);
 }
 
-function compactText(text, max = 350) {
+export function compactText(text, max = 350) {
   const normalized = stripHtml(text).replace(/\s+/g, " ").trim();
   return normalized.length > max ? `${normalized.slice(0, max)}…` : normalized;
 }
 
-function scoreText(text, keywords) {
+export function scoreText(text, keywords) {
   const haystack = String(text || "");
   return keywords.reduce((score, kw) => score + (haystack.includes(kw) ? 1 : 0), 0);
 }
@@ -134,8 +211,7 @@ function sourceUrlForStandard(item) {
 
 async function findStandardEvidence(query, { includeLocalStandards = false, maxStandards = 3, maxSectionsPerStandard = 2 } = {}) {
   requireApiKey("KCSC_API_KEY", KCSC_KEY);
-  const codeList = await fetchKCSC("/CodeList");
-  const list = Array.isArray(codeList) ? codeList : [];
+  const list = await getCodeList();
   const keywords = keywordsFrom(query);
   const allowedTypes = includeLocalStandards ? null : new Set(["KDS", "KCS"]);
   const candidates = list
@@ -147,8 +223,8 @@ async function findStandardEvidence(query, { includeLocalStandards = false, maxS
     .sort((a, b) => b.score - a.score || standardAuthorityRank(a.item.codeType) - standardAuthorityRank(b.item.codeType))
     .slice(0, maxStandards);
 
-  const evidence = [];
-  for (const { item, score } of candidates) {
+  // 상세 조회는 서로 독립적이므로 병렬 실행
+  return Promise.all(candidates.map(async ({ item, score }) => {
     const entry = {
       source_type: item.codeType,
       title: item.name || "",
@@ -162,7 +238,7 @@ async function findStandardEvidence(query, { includeLocalStandards = false, maxS
     };
     if (["KDS", "KCS"].includes(item.codeType) && item.code) {
       try {
-        const detail = await fetchKCSC(`/CodeViewer/${item.codeType}/${item.code}`);
+        const detail = await fetchKCSC(`/CodeViewer/${encodeURIComponent(item.codeType)}/${encodeURIComponent(item.code)}`);
         const detailItem = Array.isArray(detail) ? detail[0] : detail;
         const sections = detailItem?.list || [];
         entry.sections = sections
@@ -180,9 +256,8 @@ async function findStandardEvidence(query, { includeLocalStandards = false, maxS
         entry.detail_error = error.message;
       }
     }
-    evidence.push(entry);
-  }
-  return evidence;
+    return entry;
+  }));
 }
 
 function searchManualEvidence(query, { document = "전체", maxResults = 3 } = {}) {
@@ -268,7 +343,7 @@ function adminRuleDetailUrl(id) {
   return id ? `${LAW_BASE}/lawService.do?target=admrul&ID=${encodeURIComponent(id)}&type=HTML` : LAW_BASE;
 }
 
-function normalizeLawArticles(lawDetail, keyword = "", maxArticles = 8) {
+export function normalizeLawArticles(lawDetail, keyword = "", maxArticles = 8) {
   const law = lawDetail?.["법령"] || lawDetail;
   const info = law?.["기본정보"] || {};
   const articles = asArray(law?.["조문"]?.["조문단위"]);
@@ -295,7 +370,7 @@ function normalizeLawArticles(lawDetail, keyword = "", maxArticles = 8) {
     .map(({ score, ...a }) => a);
 }
 
-function normalizeAdminRuleArticles(detail, keyword = "", maxArticles = 8) {
+export function normalizeAdminRuleArticles(detail, keyword = "", maxArticles = 8) {
   const root = detail?.AdmRulService || detail;
   const basic = root?.기본정보 || {};
   const jo = asArray(root?.조문?.조문단위 || root?.조문단위);
@@ -331,7 +406,7 @@ function normalizeAdminRuleArticles(detail, keyword = "", maxArticles = 8) {
     .map(({ score, ...a }) => a);
 }
 
-const server = new McpServer({ name: "korean-engineering-mcp", version: "1.0.0" });
+const server = new McpServer({ name: "korean-engineering-mcp", version: pkg.version });
 
 
 // ══════════════════════════════════════════════════════════════
@@ -342,24 +417,31 @@ server.tool(
   "search_standards",
   "한국 건설기준(KDS 설계기준, KCS 표준시방서) 키워드 검색",
   {
-    query: z.string().describe("검색 키워드 (예: 콘크리트, 하수도, 상수도, 강구조, 내진)"),
+    query: z.string().describe("검색 키워드 (예: 콘크리트, 하수도, 상수도, 강구조, 내진). 여러 단어를 띄어 쓰면 각 단어별로 매칭합니다."),
     type:  z.enum(["ALL", "KDS", "KCS"]).default("ALL").describe("기준 종류 필터: ALL(전체), KDS(설계기준), KCS(표준시방서)"),
-    limit: z.number().default(20).describe("최대 결과 수 (기본 20)"),
+    limit: z.number().int().min(1).max(100).default(20).describe("최대 결과 수 (기본 20)"),
   },
   async ({ query, type, limit }) => {
-    const data = await fetchKCSC("/CodeList");
-    const list = Array.isArray(data) ? data : [];
-    const results = list
-      .filter((item) => {
-        const matchType = type === "ALL" || item.codeType === type;
-        const matchKeyword = item.name?.includes(query) || item.code?.includes(query) || item.fullCode?.includes(query);
-        return matchType && matchKeyword;
-      })
-      .slice(0, limit);
+    const list = await getCodeList();
+    // 다단어 검색: 키워드별 매칭 수로 스코어링 (전체 구절 일치 요구 X)
+    const keywords = keywordsFrom(query);
+    const searchTerms = keywords.length ? keywords : [query.trim()].filter(Boolean);
+    const matched = list
+      .map((item) => ({
+        item,
+        score: scoreText(`${item.code || ""} ${item.fullCode || ""} ${item.name || ""}`, searchTerms),
+      }))
+      .filter(({ item, score }) => score > 0 && (type === "ALL" || item.codeType === type))
+      .sort((a, b) => b.score - a.score || standardAuthorityRank(a.item.codeType) - standardAuthorityRank(b.item.codeType));
+
+    const results = matched.slice(0, limit).map(({ item }) => item);
 
     if (!results.length) return { content: [{ type: "text", text: `'${query}' 검색 결과 없음` }] };
 
-    const lines = [`검색결과: '${query}' (${results.length}건)\n`];
+    const countLabel = matched.length > results.length
+      ? `총 ${matched.length}건 중 상위 ${results.length}건 표시`
+      : `${results.length}건`;
+    const lines = [`검색결과: '${query}' (${countLabel})\n`];
     for (const item of results) {
       lines.push(`[${item.codeType}] ${item.code} - ${item.name}`);
       lines.push(`  버전: ${item.version || "-"} | 수정일: ${item.updateDate?.split("T")[0] || "-"}`);
@@ -375,11 +457,12 @@ server.tool(
   "특정 건설기준 코드의 상세 내용(목차 및 본문) 조회",
   {
     type:    z.enum(["KDS", "KCS"]).describe("기준 종류: KDS(설계기준) 또는 KCS(표준시방서)"),
-    code:    z.string().describe("기준 코드 번호 (예: 142001, 570010)"),
+    code:    z.string().regex(/^[\d\s]+$/, "기준 코드는 숫자여야 합니다 (예: 142001)").describe("기준 코드 번호 (예: 142001, 570010)"),
     section: z.string().optional().describe("특정 절 키워드로 필터링 (선택사항, 예: 재료, 설계, 시공)"),
   },
   async ({ type, code, section }) => {
-    const data = await fetchKCSC(`/CodeViewer/${type}/${code}`);
+    const normalizedCode = code.replace(/\s+/g, "");
+    const data = await fetchKCSC(`/CodeViewer/${type}/${encodeURIComponent(normalizedCode)}`);
     const item = Array.isArray(data) ? data[0] : data;
     if (!item?.name) return { content: [{ type: "text", text: `${type} ${code} 조회 실패` }] };
 
@@ -415,8 +498,7 @@ server.tool(
     type: z.enum(["ALL", "KDS", "KCS"]).default("ALL").describe("기준 종류 필터"),
   },
   async ({ type }) => {
-    const data = await fetchKCSC("/CodeList");
-    const list = Array.isArray(data) ? data : [];
+    const list = await getCodeList();
     const filtered = type === "ALL" ? list : list.filter((i) => i.codeType === type);
 
     const groups = {};
@@ -445,7 +527,7 @@ server.tool(
   "법제처 법령 검색 (법률·시행령·시행규칙 등)",
   {
     query:   z.string().describe("검색 키워드 (예: 상수도법, 하수도법, 건설기술진흥법)"),
-    display: z.number().default(10).describe("결과 수 (기본 10)"),
+    display: z.number().int().min(1).max(100).default(10).describe("결과 수 (기본 10)"),
   },
   async ({ query, display }) => {
     const data = await fetchLaw("lawSearch.do", { target: "law", query, display });
@@ -474,7 +556,7 @@ server.tool(
   "법제처 법령 해석례 검색 (법령 적용 해석 사례)",
   {
     query:   z.string().describe("검색 키워드 (예: 기술진단, 하수도 대행, 상수도 허가)"),
-    display: z.number().default(10).describe("결과 수 (기본 10)"),
+    display: z.number().int().min(1).max(100).default(10).describe("결과 수 (기본 10)"),
   },
   async ({ query, display }) => {
     const data = await fetchLaw("lawSearch.do", { target: "expc", query, display });
@@ -501,7 +583,7 @@ server.tool(
   "법제처 행정규칙 검색 (고시·예규·훈령·지침 등)",
   {
     query:   z.string().describe("검색 키워드 (예: 상수도 설계기준 고시, 하수도 기술진단 지침)"),
-    display: z.number().default(10).describe("결과 수 (기본 10)"),
+    display: z.number().int().min(1).max(100).default(10).describe("결과 수 (기본 10)"),
   },
   async ({ query, display }) => {
     const data = await fetchLaw("lawSearch.do", { target: "admrul", query, display });
@@ -530,7 +612,7 @@ server.tool(
   {
     mst: z.string().describe("법령일련번호(MST). search_laws 결과의 MST 값을 사용"),
     keyword: z.string().optional().describe("조문 필터링 키워드. 예: 기술진단, 배수설비, 공공하수도"),
-    max_articles: z.number().default(8).describe("토큰 절감을 위한 최대 조문 수"),
+    max_articles: z.number().int().min(1).max(20).default(8).describe("토큰 절감을 위한 최대 조문 수"),
   },
   async ({ mst, keyword, max_articles }) => {
     const detail = await fetchLaw("lawService.do", { target: "law", MST: mst });
@@ -560,7 +642,7 @@ server.tool(
   {
     id: z.string().describe("행정규칙 일련번호. search_admin_rules 결과의 일련번호 값을 사용"),
     keyword: z.string().optional().describe("조문/별표 필터링 키워드"),
-    max_articles: z.number().default(8).describe("토큰 절감을 위한 최대 조문/별표 수"),
+    max_articles: z.number().int().min(1).max(20).default(8).describe("토큰 절감을 위한 최대 조문/별표 수"),
   },
   async ({ id, keyword, max_articles }) => {
     const detail = await fetchLaw("lawService.do", { target: "admrul", ID: id });
@@ -602,7 +684,7 @@ server.tool(
 
     // 4개 API 병렬 호출
     const [kcscRes, lawRes, interpRes, adminRes] = await Promise.allSettled([
-      fetchKCSC("/CodeList"),
+      getCodeList(),
       fetchLaw("lawSearch.do", { target: "law",    query: lq, display: 5 }),
       fetchLaw("lawSearch.do", { target: "expc",   query: lq, display: 5 }),
       fetchLaw("lawSearch.do", { target: "admrul", query: lq, display: 5 }),
@@ -619,10 +701,14 @@ server.tool(
     lines.push("▶ [건설기준 (KDS/KCS)]");
     if (kcscRes.status === "fulfilled") {
       const list = Array.isArray(kcscRes.value) ? kcscRes.value : [];
-      const keywords = sq.replace(/\s+/g, " ").split(" ").filter(Boolean);
+      const keywords = keywordsFrom(sq);
+      const searchTerms = keywords.length ? keywords : [sq.trim()].filter(Boolean);
       const matched = list
-        .filter((item) => keywords.some((kw) => item.name?.includes(kw) || item.code?.includes(kw)))
-        .slice(0, 6);
+        .map((item) => ({ item, score: scoreText(`${item.code || ""} ${item.name || ""}`, searchTerms) }))
+        .filter(({ score }) => score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 6)
+        .map(({ item }) => item);
 
       if (matched.length) {
         for (const item of matched) {
@@ -681,7 +767,7 @@ server.tool(
       const items = extractList(search, "admrul");
       if (items.length) {
         for (const item of items) {
-          lines.push(`  ■ ${item["행정규칙명"] || ""} (${item["행정규칙구분"] || ""}, ${item["발령기관명"] || item["발령기관"] || ""})`);
+          lines.push(`  ■ ${item["행정규칙명"] || ""} (${item["행정규칙종류"] || item["행정규칙구분"] || ""}, ${item["소관부처명"] || item["발령기관명"] || item["발령기관"] || ""})`);
         }
       } else {
         lines.push(`  "${lq}" 관련 행정규칙 없음`);
@@ -707,7 +793,7 @@ server.tool(
     standard_query: z.string().optional().describe("건설기준 검색어. 생략 시 question 사용"),
     law_query: z.string().optional().describe("법령/행정규칙 검색어. 생략 시 question 사용"),
     include_local_standards: z.boolean().default(false).describe("SMCS/LHCS 등 기관·지자체 기준까지 포함할지 여부. 기본은 KDS/KCS 우선"),
-    max_evidence: z.number().default(8).describe("토큰 절감을 위한 최대 근거 항목 수"),
+    max_evidence: z.number().int().min(3).max(20).default(8).describe("토큰 절감을 위한 최대 근거 항목 수"),
     compact: z.boolean().default(true).describe("짧은 인용문 중심으로 반환하여 모델 토큰 사용량 최소화"),
   },
   async ({ question, standard_query, law_query, include_local_standards, max_evidence, compact }) => {
@@ -801,7 +887,7 @@ if (availableDocs.length > 0) {
       query:    z.string().describe("검색 키워드 (예: 배수지 용량, 관거 경사, 슬러지 처리)"),
       document: z.enum(["상수도", "하수도", "전체"]).default("전체")
                  .describe("검색 대상 문서 선택"),
-      max_results: z.number().default(3).describe("반환할 최대 섹션 수 (기본 3)"),
+      max_results: z.number().int().min(1).max(20).default(3).describe("반환할 최대 섹션 수 (기본 3)"),
     },
     async ({ query, document, max_results }) => {
       const keywords = query.trim().split(/\s+/).filter(Boolean);
@@ -859,5 +945,8 @@ if (availableDocs.length > 0) {
 
 
 // ── 실행 ──────────────────────────────────────────────────────
-const transport = new StdioServerTransport();
-await server.connect(transport);
+// 단위 테스트에서 헬퍼 함수만 import할 수 있도록 자동 시작을 가드
+if (process.env.KOREAN_ENGINEERING_MCP_SKIP_AUTOSTART !== "1") {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}

@@ -37,6 +37,14 @@ The script prompts for:
 - API keys
 - optional reference directory
 
+**Non-interactive shells (AI agents, CI):** the script does not prompt when stdin is not a TTY. Collect the keys from the user in chat first, then run:
+
+```bash
+CLIENT=claude KCSC_API_KEY="<value>" LAW_API_KEY="<value>" REFERENCE_DIR="<optional>" \
+  ./install/setup-interactive.sh
+# or: ./install/setup-interactive.sh --client claude   (keys via environment)
+```
+
 It then writes a local `.korean-engineering-mcp.env` file with `0600` permissions and prints the MCP configuration snippet or runs the supported registration command when safe.
 
 ## Manual fallback
