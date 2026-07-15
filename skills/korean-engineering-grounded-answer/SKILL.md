@@ -1,7 +1,7 @@
 ---
 name: korean-engineering-grounded-answer
-description: "한국 엔지니어링 전 분야의 법령·건설기준·소관기관 기준 근거 기반 답변과 동일 내용 HTML 보고서 생성 절차. korean-engineering-mcp와 함께 사용해 할루시네이션을 줄이고 분야 분류·정확한 인용·종합 판단·문서 산출을 강제한다."
-version: 1.1.0
+description: "한국 엔지니어링 전 분야의 법령·건설기준·소관기관 기준 근거 기반 답변과 사용자 확인 후 선택적으로 동일 내용 HTML 보고서를 생성하는 절차. korean-engineering-mcp와 함께 사용해 할루시네이션을 줄이고 분야 분류·정확한 인용·종합 판단·문서 산출을 강제한다."
+version: 1.2.0
 author: sonmeggy / Lumi
 license: MIT
 platforms: [linux, macos, windows]
@@ -24,7 +24,9 @@ Do **not** answer from general knowledge alone. Before giving a substantive answ
 4. Use `get_standard_detail`, `search_laws`, `get_law_detail`, `search_admin_rules`, `get_admin_rule_detail`, `search_interpretations`, or `search_reference_documents` to fill missing citation details.
 5. If MCP is unavailable, use official web search or verified local reference documents before answering.
 6. If direct evidence is still unavailable, say `직접 근거 미확인` or `근거 불충분`; do not make a definitive claim.
-7. When the user requests HTML or a report artifact, draft the final Markdown once and pass that exact body to `render_engineering_answer_html`; do not create a separately paraphrased HTML answer.
+7. HTML is **optional**. Do not call `render_engineering_answer_html` automatically after an engineering answer.
+8. If the user did not explicitly request HTML in the current turn, first deliver the complete Markdown answer, ask `동일 내용의 HTML 보고서도 생성할까요?`, and wait for the reply.
+9. An explicit HTML request in the current turn or an affirmative reply is confirmation. Only then call `render_engineering_answer_html` with `user_confirmed_html=true` and the exact final Markdown body; a direct request does not require a second confirmation.
 
 ## Source hierarchy
 
@@ -66,18 +68,20 @@ Apply this priority order when sources conflict:
 4. Put raw source lists at the end or omit irrelevant hits.
 5. Prefer a concise conclusion plus cited reasoning over long background explanation.
 
-## HTML twin-delivery workflow
+## Optional HTML twin-delivery workflow
 
-Use this workflow when the user asks for HTML, a report-ready document, or both chat and document output:
+HTML generation is opt-in, not a default side effect.
 
-1. Complete evidence gathering and write one final Markdown answer.
-2. Call `render_engineering_answer_html` with the **exact same Markdown body** in `answer_markdown`.
-3. Do not summarize, reorder, or rewrite the HTML version separately. The chat body and document body must be content-identical.
-4. Use a clear engineering title, the detected domain, project/document metadata when known, and `document_status` such as `검토용`.
-5. Return the generated `output_path` or client attachment together with the same Markdown answer.
-6. Preserve the returned `answer_markdown_sha256` when auditability matters; the template stores the same hash in a meta tag.
-7. The bundled template is offline, A4 print/PDF ready, and provides rich HTML plus plain-text clipboard copy for Word/report drafting. Do not replace it with remote CSS, trackers, or user-supplied raw HTML.
-8. If the client cannot access the server file path, retry with `include_html=true` only when necessary, or copy the generated file through the client's normal safe attachment mechanism.
+1. Complete evidence gathering and deliver one final Markdown answer first.
+2. If the user did not already request HTML, ask once whether they want an identical HTML report and stop; do not call the renderer in that turn.
+3. If the user explicitly requested HTML or replies affirmatively, call `render_engineering_answer_html` with `user_confirmed_html=true` and the **exact same Markdown body** in `answer_markdown`.
+4. If the user declines or does not answer, do not generate a file and do not ask repeatedly.
+5. Do not summarize, reorder, or rewrite the HTML version separately. The chat body and document body must be content-identical.
+6. Use a clear engineering title, the detected domain, project/document metadata when known, and `document_status` such as `검토용`.
+7. Return the generated `output_path` or client attachment together with the same Markdown answer.
+8. Preserve the returned `answer_markdown_sha256` when auditability matters; the template stores the same hash in a meta tag.
+9. The bundled template is offline, A4 print/PDF ready, and provides rich HTML plus plain-text clipboard copy for Word/report drafting. Do not replace it with remote CSS, trackers, or user-supplied raw HTML.
+10. If the client cannot access the server file path, retry with `include_html=true` only when necessary, or copy the generated file through the client's normal safe attachment mechanism.
 
 ## Required answer format
 
