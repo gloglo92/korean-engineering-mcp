@@ -1,4 +1,10 @@
 node_modules/
 *.log
 .env
+.env.*
+!.env.example
+.korean-engineering-mcp.env
+*.tgz
+outputs/
+.outputs/
 *해설편*.md

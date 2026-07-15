@@ -24,12 +24,21 @@ Required env:
   LAW_API_KEY
 
 Optional env:
-  REFERENCE_DIR=/absolute/path/to/reference/manuals
+  REFERENCE_DIR=/absolute/path/to/engineering/references
+  ENGINEERING_OUTPUT_DIR=/absolute/path/to/engineering/outputs
+  ENGINEERING_TIMEZONE=Asia/Seoul
+
+Hermes MCP example:
+  hermes mcp add korean-engineering-mcp --command npx \
+    --env KCSC_API_KEY="$KCSC_API_KEY" LAW_API_KEY="$LAW_API_KEY" \
+    --args -y github:sonmeggy/korean-engineering-mcp
 
 Claude Code example:
   claude mcp add korean-engineering-mcp \
     -e KCSC_API_KEY="$KCSC_API_KEY" \
     -e LAW_API_KEY="$LAW_API_KEY" \
     -e REFERENCE_DIR="$REFERENCE_DIR" \
+    -e ENGINEERING_OUTPUT_DIR="$ENGINEERING_OUTPUT_DIR" \
+    -e ENGINEERING_TIMEZONE="Asia/Seoul" \
     -- npx -y github:sonmeggy/korean-engineering-mcp
 MSG

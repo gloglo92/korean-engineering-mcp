@@ -1,0 +1,227 @@
+{
+  "general": {
+    "label": "공통·융합",
+    "aliases": ["엔지니어링", "건설", "건설기준", "공통설계", "융합"],
+    "standard_prefixes": ["10"],
+    "standard_terms": ["공통설계기준", "설계기준 총칙"],
+    "law_hints": ["건설기술진흥법", "건설산업기본법"],
+    "admin_rule_hints": ["건설공사 설계도서 작성기준"],
+    "coverage": "KDS/KCS·법령·행정규칙"
+  },
+  "geotechnical": {
+    "label": "지반·기초",
+    "aliases": ["지반", "토질", "기초", "사면", "옹벽", "연약지반", "흙막이"],
+    "standard_prefixes": ["11"],
+    "standard_terms": ["지반설계기준", "기초", "사면", "옹벽"],
+    "law_hints": ["건설기술진흥법"],
+    "admin_rule_hints": ["지하안전관리에 관한 특별법"],
+    "coverage": "KDS/KCS·법령"
+  },
+  "surveying": {
+    "label": "측량·지형공간",
+    "aliases": ["측량", "지형공간", "공간정보", "수치지도", "기준점"],
+    "standard_prefixes": ["12"],
+    "standard_terms": ["건설공사 측량", "설계측량"],
+    "law_hints": ["공간정보의 구축 및 관리 등에 관한 법률"],
+    "admin_rule_hints": ["공공측량 작업규정"],
+    "coverage": "KDS/KCS·법령·행정규칙"
+  },
+  "structural": {
+    "label": "구조·재료",
+    "aliases": ["구조", "콘크리트", "강구조", "합성구조", "프리스트레스", "하중", "내구성"],
+    "standard_prefixes": ["14"],
+    "standard_terms": ["구조설계기준", "콘크리트구조", "강구조"],
+    "law_hints": ["건설기술진흥법"],
+    "admin_rule_hints": ["시설물의 안전 및 유지관리에 관한 특별법"],
+    "coverage": "KDS/KCS·법령"
+  },
+  "seismic": {
+    "label": "내진·재난",
+    "aliases": ["내진", "지진", "내진성능", "재난", "방재"],
+    "standard_prefixes": ["17"],
+    "standard_terms": ["내진 설계기준", "내진설계 일반"],
+    "law_hints": ["지진·화산재해대책법", "재난 및 안전관리 기본법"],
+    "admin_rule_hints": ["내진설계기준 공통적용사항"],
+    "coverage": "KDS/KCS·법령·행정규칙"
+  },
+  "temporary_works": {
+    "label": "가설·시공안전",
+    "aliases": ["가설", "가시설", "동바리", "비계", "거푸집", "가설구조물"],
+    "standard_prefixes": ["21"],
+    "standard_terms": ["가설설계기준", "가시설물"],
+    "law_hints": ["산업안전보건법", "건설기술진흥법"],
+    "admin_rule_hints": ["건설공사 안전관리 업무수행 지침"],
+    "coverage": "KDS/KCS·법령·행정규칙"
+  },
+  "bridge": {
+    "label": "교량",
+    "aliases": ["교량", "교각", "교대", "받침", "신축이음", "케이블교", "현수교", "사장교"],
+    "standard_prefixes": ["24"],
+    "standard_terms": ["교량설계기준", "교량"],
+    "law_hints": ["시설물의 안전 및 유지관리에 관한 특별법", "도로법"],
+    "admin_rule_hints": ["도로교설계기준"],
+    "coverage": "KDS/KCS·법령"
+  },
+  "tunnel": {
+    "label": "터널·지하공간",
+    "aliases": ["터널", "갱도", "지하공간", "굴착", "라이닝", "숏크리트"],
+    "standard_prefixes": ["27"],
+    "standard_terms": ["터널설계기준", "터널"],
+    "law_hints": ["지하안전관리에 관한 특별법", "시설물의 안전 및 유지관리에 관한 특별법"],
+    "admin_rule_hints": ["터널설계기준"],
+    "coverage": "KDS/KCS·법령"
+  },
+  "utility_tunnel": {
+    "label": "공동구",
+    "aliases": ["공동구", "지하공동구", "수용시설"],
+    "standard_prefixes": ["29"],
+    "standard_terms": ["공동구 설계기준", "공동구"],
+    "law_hints": ["국토의 계획 및 이용에 관한 법률", "도시개발법"],
+    "admin_rule_hints": ["공동구 설치 및 관리지침"],
+    "coverage": "KDS/KCS·법령"
+  },
+  "building_services": {
+    "label": "기계·전기설비",
+    "aliases": ["기계설비", "전기설비", "소방설비", "환기", "냉난방", "조명", "배관설비"],
+    "standard_prefixes": ["31", "32"],
+    "standard_terms": ["설비설계기준", "기계설비", "전기설비"],
+    "law_hints": ["기계설비법", "전기사업법", "소방시설 설치 및 관리에 관한 법률"],
+    "admin_rule_hints": ["건축물의 설비기준 등에 관한 규칙"],
+    "coverage": "KDS/KCS·법령·행정규칙"
+  },
+  "industrial_environment": {
+    "label": "산업·환경설비",
+    "aliases": ["산업환경", "산업설비", "플랜트", "환경설비", "소각", "폐기물처리", "에너지시설"],
+    "standard_prefixes": ["33"],
+    "standard_terms": ["산업환경설비", "산업환경시설"],
+    "law_hints": ["환경정책기본법", "폐기물관리법", "대기환경보전법"],
+    "admin_rule_hints": ["환경오염시설의 통합관리에 관한 법률"],
+    "coverage": "KDS/KCS·법령"
+  },
+  "landscape": {
+    "label": "조경·생태",
+    "aliases": ["조경", "생태", "공원", "녹지", "식재", "경관"],
+    "standard_prefixes": ["34"],
+    "standard_terms": ["조경설계기준", "조경"],
+    "law_hints": ["도시공원 및 녹지 등에 관한 법률", "경관법", "자연환경보전법"],
+    "admin_rule_hints": ["조경기준"],
+    "coverage": "KDS/KCS·법령·행정규칙"
+  },
+  "architecture": {
+    "label": "건축",
+    "aliases": ["건축", "건축물", "건축구조", "피난", "용도변경", "건축허가", "건축설비"],
+    "standard_prefixes": ["41", "42", "43"],
+    "standard_terms": ["건축구조기준", "소규모 건축", "특수목적 건축"],
+    "law_hints": ["건축법", "건축물관리법", "녹색건축물 조성 지원법"],
+    "admin_rule_hints": ["건축물의 구조기준 등에 관한 규칙", "건축물의 피난·방화구조 등의 기준에 관한 규칙"],
+    "coverage": "KDS/KCS·법령·행정규칙"
+  },
+  "road": {
+    "label": "도로·교통",
+    "aliases": ["도로", "교통", "포장", "교차로", "도로배수", "도로안전", "자전거도로"],
+    "standard_prefixes": ["44"],
+    "standard_terms": ["도로설계기준", "도로공사", "도로 포장", "도로배수"],
+    "law_hints": ["도로법", "도로교통법", "유료도로법"],
+    "admin_rule_hints": ["도로의 구조·시설 기준에 관한 규칙", "도로안전시설 설치 및 관리지침"],
+    "coverage": "KDS/KCS·법령·행정규칙"
+  },
+  "railway": {
+    "label": "철도",
+    "aliases": ["철도", "도시철도", "궤도", "노반", "철도역", "승강장", "전철", "고속철도"],
+    "standard_prefixes": ["47"],
+    "standard_terms": ["철도설계기준", "철도공사", "노반", "철도시스템"],
+    "law_hints": ["철도건설법", "철도안전법", "도시철도법"],
+    "admin_rule_hints": ["철도건설규칙", "철도시설의 기술기준"],
+    "coverage": "KDS/KCS·법령·행정규칙"
+  },
+  "urban_planning": {
+    "label": "도시·단지·계획",
+    "aliases": ["도시계획", "도시개발", "도시재생", "택지", "단지", "지구단위계획", "스마트도시", "국토계획"],
+    "standard_prefixes": [],
+    "standard_terms": ["도시부", "단지", "공동구", "조경", "상하수도"],
+    "law_hints": ["국토의 계획 및 이용에 관한 법률", "도시개발법", "도시재생 활성화 및 지원에 관한 특별법", "스마트도시 조성 및 산업진흥 등에 관한 법률"],
+    "admin_rule_hints": ["도시·군계획시설의 결정·구조 및 설치기준에 관한 규칙"],
+    "coverage": "법령·행정규칙 중심, 관련 KDS/KCS 교차검색"
+  },
+  "river": {
+    "label": "하천·수자원",
+    "aliases": ["하천", "수자원", "홍수", "제방", "호안", "하도", "유역", "치수", "이수"],
+    "standard_prefixes": ["51"],
+    "standard_terms": ["하천설계기준", "하천", "제방", "호안"],
+    "law_hints": ["하천법", "수자원의 조사·계획 및 관리에 관한 법률", "자연재해대책법"],
+    "admin_rule_hints": ["하천기본계획 수립지침"],
+    "coverage": "KDS/KCS·법령·행정규칙"
+  },
+  "dam": {
+    "label": "댐·저수지",
+    "aliases": ["댐", "저수지", "여수로", "취수탑", "필댐", "콘크리트댐"],
+    "standard_prefixes": ["54"],
+    "standard_terms": ["댐 설계기준", "댐"],
+    "law_hints": ["댐건설·관리 및 주변지역지원 등에 관한 법률", "저수지·댐의 안전관리 및 재해예방에 관한 법률"],
+    "admin_rule_hints": ["댐 설계기준"],
+    "coverage": "KDS/KCS·법령"
+  },
+  "water_supply": {
+    "label": "상수도",
+    "aliases": ["상수도", "수도", "정수장", "취수", "도수", "송수", "배수지", "급수", "관망"],
+    "standard_prefixes": ["57"],
+    "standard_terms": ["상수도설계기준", "상수도공사"],
+    "law_hints": ["수도법", "먹는물관리법"],
+    "admin_rule_hints": ["상수도시설기준", "수도시설의 기술진단에 관한 규칙"],
+    "coverage": "KDS/KCS·법령·행정규칙·로컬 해설편"
+  },
+  "wastewater": {
+    "label": "하수도",
+    "aliases": ["하수도", "하수처리", "폐수", "관거", "하수관로", "우수", "오수", "슬러지", "방류수"],
+    "standard_prefixes": ["61"],
+    "standard_terms": ["하수도설계기준", "하수도공사"],
+    "law_hints": ["하수도법", "물환경보전법"],
+    "admin_rule_hints": ["공공하수도시설 운영·관리 업무지침", "하수도시설기준"],
+    "coverage": "KDS/KCS·법령·행정규칙·로컬 해설편"
+  },
+  "agricultural_infrastructure": {
+    "label": "농업생산기반",
+    "aliases": ["농업생산기반", "농업용수", "용배수로", "농업용 댐", "양수장", "배수장", "간척"],
+    "standard_prefixes": ["67"],
+    "standard_terms": ["농업생산기반시설설계기준", "농업용"],
+    "law_hints": ["농어촌정비법", "농업생산기반시설 및 주변지역 활용에 관한 특별법"],
+    "admin_rule_hints": ["농업생산기반정비사업 계획설계기준"],
+    "coverage": "KDS/KCS·법령·행정규칙"
+  },
+  "port": {
+    "label": "항만·해안",
+    "aliases": ["항만", "항구", "어항", "방파제", "안벽", "부두", "계류", "준설", "해안", "매립"],
+    "standard_prefixes": [],
+    "standard_terms": ["항만", "어항", "해안", "방파제", "준설"],
+    "law_hints": ["항만법", "어촌·어항법", "공유수면 관리 및 매립에 관한 법률"],
+    "admin_rule_hints": ["항만 및 어항 설계기준", "항만시설물 안전시설 설계지침"],
+    "coverage": "법령·행정규칙 중심, KCSC 수록 기준은 제한적"
+  },
+  "airport": {
+    "label": "공항·항공",
+    "aliases": ["공항", "활주로", "유도로", "계류장", "항공등화", "공항시설", "비행장"],
+    "standard_prefixes": [],
+    "standard_terms": ["공항", "활주로", "유도로", "항공등화"],
+    "law_hints": ["공항시설법", "항공안전법", "공항소음 방지 및 소음대책지역 지원에 관한 법률"],
+    "admin_rule_hints": ["공항·비행장시설 및 이착륙장 설치기준", "공항안전운영기준"],
+    "coverage": "법령·행정규칙 중심, KCSC 직접 기준은 제한적"
+  },
+  "construction_management": {
+    "label": "건설사업관리·품질·안전",
+    "aliases": ["건설사업관리", "감리", "품질관리", "안전관리", "공정관리", "사업비", "원가", "공사비"],
+    "standard_prefixes": [],
+    "standard_terms": ["건설공사", "품질", "안전", "유지관리"],
+    "law_hints": ["건설기술진흥법", "건설산업기본법", "산업안전보건법"],
+    "admin_rule_hints": ["건설공사 사업관리방식 검토기준 및 업무수행지침", "건설공사 품질관리 업무지침"],
+    "coverage": "법령·행정규칙 중심, 관련 KCS 교차검색"
+  },
+  "environment": {
+    "label": "환경·자원순환",
+    "aliases": ["환경영향평가", "환경", "대기", "수질", "토양", "소음", "진동", "폐기물", "자원순환"],
+    "standard_prefixes": ["33"],
+    "standard_terms": ["환경시설", "산업환경설비", "소음", "폐기물"],
+    "law_hints": ["환경정책기본법", "환경영향평가법", "폐기물관리법", "물환경보전법", "대기환경보전법"],
+    "admin_rule_hints": ["환경영향평가서등 작성 등에 관한 규정"],
+    "coverage": "법령·행정규칙 중심, 관련 KDS/KCS 교차검색"
+  }
+}

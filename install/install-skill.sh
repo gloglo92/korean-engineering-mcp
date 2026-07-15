@@ -54,5 +54,5 @@ cat <<'MSG'
 Skill installed. Also configure the MCP server in your client:
   command: npx
   args: -y github:sonmeggy/korean-engineering-mcp
-  env: KCSC_API_KEY, LAW_API_KEY, optional REFERENCE_DIR
+  env: KCSC_API_KEY, LAW_API_KEY; optional REFERENCE_DIR, ENGINEERING_OUTPUT_DIR, ENGINEERING_TIMEZONE
 MSG
