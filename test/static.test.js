@@ -24,6 +24,8 @@ test('provides grounded research and citation-detail tools', () => {
   assert.match(index, /evidence_status/);
   assert.match(index, /source_hierarchy/);
   assert.match(index, /근거 불충분|직접 근거 미확인/);
+  assert.match(index, /confirmation_required:\s*true/);
+  assert.match(index, /동일 내용의 HTML 보고서도 생성할까요/);
 });
 
 test('skill enforces evidence-first and citation-first answers', () => {
@@ -31,6 +33,9 @@ test('skill enforces evidence-first and citation-first answers', () => {
   assert.match(skill, /Source hierarchy/);
   assert.match(skill, /Required answer format/);
   assert.match(skill, /근거 불충분/);
+  assert.match(skill, /HTML is \*\*optional\*\*/);
+  assert.match(skill, /user_confirmed_html=true/);
+  assert.match(skill, /ask once.*identical HTML report/);
 });
 
 test('README documents MCP plus skill installation', () => {
@@ -53,6 +58,9 @@ test('ships a cross-domain registry for the requested engineering sectors', () =
 
 test('ships secure copy and print friendly HTML output', () => {
   assert.match(index, /render_engineering_answer_html/);
+  assert.match(index, /user_confirmed_html/);
+  assert.match(index, /user_confirmation_required/);
+  assert.match(readme, /HTML은 기본 자동생성하지 않습니다/);
   assert.match(htmlRenderer, /html:\s*false/);
   assert.match(htmlRenderer, /linkify:\s*false/);
   assert.match(htmlRenderer, /protocol === "https:"/);

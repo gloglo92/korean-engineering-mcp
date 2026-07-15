@@ -2,8 +2,8 @@
 
 이 프로젝트는 두 계층을 함께 설치하는 것을 권장합니다.
 
-- **MCP server**: 한국 엔지니어링 전 분야의 법령, 행정규칙, 해석례, KDS/KCS, 선택적 로컬 기술자료를 검색하고 HTML 보고서를 생성합니다.
-- **Skill / instruction package**: 근거 우선, 출처 계층, 정확한 인용, 종합 판단, 근거 부족 시 단정 금지, 채팅/HTML 동일 내용 규칙을 적용합니다.
+- **MCP server**: 한국 엔지니어링 전 분야의 법령, 행정규칙, 해석례, KDS/KCS, 선택적 로컬 기술자료를 검색하고 사용자 확인 후 HTML 보고서를 생성합니다.
+- **Skill / instruction package**: 근거 우선, 출처 계층, 정확한 인용, 종합 판단, 근거 부족 시 단정 금지, HTML 자동생성 금지와 사용자 동의 후 채팅/HTML 동일 내용 규칙을 적용합니다.
 
 클라이언트가 MCP만 지원하면 MCP를 설치하고 `skills/korean-engineering-grounded-answer/SKILL.md`를 프로젝트/사용자 지침에 복사하세요.
 
@@ -155,14 +155,27 @@ hermes mcp test korean-engineering-mcp
 도로 배수시설 설계기준과 관련 법령을 grounded_engineering_research로 확인해서 답해줘.
 ```
 
-4. HTML 질문:
+4. HTML 선택 흐름:
+
+일반 엔지니어링 답변에서는 파일을 자동 생성하지 않고 다음 질문으로 사용자 의사를 확인합니다.
 
 ```text
-답변과 동일한 내용의 HTML 엔지니어링 보고서도 생성해줘.
+동일 내용의 HTML 보고서도 생성할까요?
+```
+
+사용자가 동의하거나 처음부터 HTML을 명시적으로 요청한 경우에만 다음 인자로 렌더러를 호출합니다.
+
+```json
+{
+  "user_confirmed_html": true,
+  "title": "검토 제목",
+  "answer_markdown": "최종 채팅 답변과 동일한 Markdown"
+}
 ```
 
 확인 항목:
 
+- 동의 전 `user_confirmed_html=false` 호출은 `user_confirmation_required`로 거부되고 파일이 생성되지 않는지
 - `output_path`가 설정한 `ENGINEERING_OUTPUT_DIR` 아래인지
 - HTML에 제목, 본문, `보고서 복사`, `인쇄 / PDF`가 있는지
 - `answer_markdown_sha256`과 HTML meta의 hash가 동일한지
@@ -180,6 +193,8 @@ hermes mcp test korean-engineering-mcp
 
 - `grounded_engineering_research`를 먼저 사용하고 `max_evidence` 5~8을 권장합니다.
 - 상세 조회는 상위 1~3개 기준/법령에 한정합니다.
+- HTML은 기본 자동생성하지 않습니다.
+- 사용자 요청/동의 후 `render_engineering_answer_html.user_confirmed_html=true`를 명시합니다.
 - `render_engineering_answer_html.include_html`은 기본 `false`로 유지합니다.
 - 파일 경로를 클라이언트가 사용할 수 없을 때만 `include_html=true`를 사용합니다.
 
@@ -190,4 +205,5 @@ hermes mcp test korean-engineering-mcp
 3. 검색결과 제목과 직접 조문/절을 구분합니다.
 4. 출처 효력과 적용성을 종합해 결론을 냅니다.
 5. 근거가 부족하면 `근거 불충분`으로 표시합니다.
-6. HTML 요청 시 최종 Markdown과 동일한 본문을 렌더링합니다.
+6. HTML은 사용자가 현재 요청에서 명시적으로 요구했거나 답변 후 생성 제안에 동의한 경우에만 `user_confirmed_html=true`로 렌더링합니다.
+7. HTML 요청/동의 시 최종 Markdown과 동일한 본문을 렌더링합니다.

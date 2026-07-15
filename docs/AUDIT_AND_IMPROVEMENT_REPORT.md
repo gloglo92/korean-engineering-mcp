@@ -1,11 +1,11 @@
-# korean-engineering-mcp v1.3.0 감사 및 개선 보고서
+# korean-engineering-mcp v1.3.1 감사 및 개선 보고서
 
 ## 1. 검토 대상과 결론
 
 - 저장소: `sonmeggy/korean-engineering-mcp`
 - 기준 커밋: `ceeb811809f6322da89be62703633fe8945b7d44`
 - 개선 브랜치: `feat/full-engineering-html-output`
-- 검토 결론: 상하수도 중심 구조를 한국 엔지니어링 전 분야 검색 구조로 확장하고, 최종 답변과 동일한 Markdown을 복사·인쇄 친화 HTML 보고서로 내보내는 기능을 구현했다.
+- 검토 결론: 상하수도 중심 구조를 한국 엔지니어링 전 분야 검색 구조로 확장하고, 사용자의 명시적 요청 또는 답변 후 동의를 확인한 경우에만 최종 답변과 동일한 Markdown을 복사·인쇄 친화 HTML 보고서로 내보내는 기능을 구현했다.
 - 품질 상태: 단위·MCP stdio·보안·패키징·설치·실제 KCSC/법제처 API·브라우저 렌더링 검증을 통과했다.
 
 “전 분야 지원”은 모든 분야에 동일한 직접 KDS/KCS가 존재한다는 의미가 아니다. 공항·항만·도시·환경·건설사업관리처럼 기준이 소관기관에 분산된 분야는 `partial`로 표시하고 법령·행정규칙 및 기관 최신 기준 추가 확인을 요구한다.
@@ -50,7 +50,10 @@
 ### 3.4 HTML 보고서
 
 - `src/html-renderer.js`와 `templates/engineering-report.html`을 추가했다.
-- `render_engineering_answer_html` 도구가 최종 답변 Markdown을 전용 출력 디렉터리에 단일 HTML로 저장한다.
+- HTML은 선택사항이며 일반 답변 직후 자동 생성하지 않는다.
+- 사용자가 현재 요청에서 HTML을 명시적으로 요구했거나 답변 후 생성 제안에 동의한 경우에만 `user_confirmed_html=true`로 `render_engineering_answer_html`을 호출한다.
+- `user_confirmed_html=false`이면 `user_confirmation_required` 오류를 반환하고 파일을 쓰지 않는다.
+- `render_engineering_answer_html` 도구가 확인된 최종 답변 Markdown을 전용 출력 디렉터리에 단일 HTML로 저장한다.
 - 결과에는 `answer_markdown_sha256`와 `html_sha256`가 포함되고, 입력 Markdown 해시는 HTML 메타에도 기록된다.
 - 디자인은 엔지니어링 검토보고서용 네이비·청록 팔레트, 제목·메타정보·표·목록·인용문·코드·A4 인쇄·Word 복사에 최적화했다.
 - 브라우저의 `보고서 복사` 버튼은 지원 환경에서 HTML과 plain text를 함께 복사한다.

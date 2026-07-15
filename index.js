@@ -666,8 +666,9 @@ server.tool(
 
 server.tool(
   "render_engineering_answer_html",
-  "최종 엔지니어링 답변 Markdown과 동일한 내용을 오프라인·A4 인쇄·Word 복사에 적합한 HTML 보고서로 생성합니다. 원문 HTML은 비활성화하고 출력은 전용 디렉터리로 제한합니다.",
+  "사용자가 현재 대화에서 HTML 보고서를 명시적으로 요청했거나, 답변 후 제안에 동의한 경우에만 호출합니다. 최종 엔지니어링 답변 Markdown과 동일한 내용을 오프라인·A4 인쇄·Word 복사에 적합한 HTML 보고서로 생성합니다. 원문 HTML은 비활성화하고 출력은 전용 디렉터리로 제한합니다.",
   {
+    user_confirmed_html: z.boolean().describe("사용자가 이번 답변의 HTML 생성을 명시적으로 요청하거나 제안에 동의했음을 확인. 동의한 경우에만 true"),
     title: z.string().min(1).max(160).describe("문서 제목"),
     answer_markdown: z.string().min(1).max(120000).describe("최종 답변과 정확히 동일한 Markdown 본문"),
     domain: z.string().default("auto").describe("auto 또는 분야 key/한글명"),
@@ -679,7 +680,19 @@ server.tool(
     filename: z.string().max(150).optional().describe("파일명. 경로는 허용되지 않으며 .html은 자동 부여"),
     include_html: z.boolean().default(false).describe("파일 경로와 함께 HTML 원문도 반환할지 여부. 기본 false로 토큰 절감"),
   },
-  async ({ title, answer_markdown, domain, project_name, document_id, author, document_status, prepared_at, filename, include_html }) => {
+  async ({ user_confirmed_html, title, answer_markdown, domain, project_name, document_id, author, document_status, prepared_at, filename, include_html }) => {
+    if (!user_confirmed_html) {
+      const refusal = {
+        generated: false,
+        reason: "user_confirmation_required",
+        message: "HTML 보고서는 선택사항입니다. 먼저 엔지니어링 답변을 제공하고 사용자에게 동일 내용 HTML 생성 여부를 확인한 뒤, 동의한 경우에만 user_confirmed_html=true로 다시 호출하세요.",
+      };
+      return {
+        isError: true,
+        content: [{ type: "text", text: JSON.stringify(refusal, null, 2) }],
+        structuredContent: refusal,
+      };
+    }
     const detected = resolveEngineeringDomains(`${title} ${answer_markdown.slice(0, 2000)}`, domain, 2);
     const result = writeEngineeringAnswerHtml({
       title,
@@ -698,7 +711,7 @@ server.tool(
       ...result,
       domain: detected.map((item) => ({ key: item.key, label: item.label })),
       content_identity: "answer_markdown_sha256는 입력 Markdown 전체의 SHA-256이며 HTML meta에도 동일하게 기록됩니다.",
-      usage: "최종 채팅 답변에는 입력한 answer_markdown을 그대로 사용하고, output_path의 HTML 파일을 함께 제공하세요.",
+      usage: "사용자 확인을 받은 뒤 생성된 문서입니다. 최종 채팅 답변에는 입력한 answer_markdown을 그대로 사용하고, output_path의 HTML 파일을 함께 제공하세요.",
     };
     if (!include_html) delete payload.html;
     return {
@@ -1257,8 +1270,12 @@ server.tool(
       gaps: [],
       required_final_answer_format: ["결론", "쟁점", "확인 근거", "종합 판단", "실무 적용", "한계/추가 확인 필요사항"],
       html_delivery: {
+        optional: true,
+        confirmation_required: true,
+        confirmation_prompt: "동일 내용의 HTML 보고서도 생성할까요?",
         tool: "render_engineering_answer_html",
-        rule: "사용자가 HTML을 원하면 최종 답변과 정확히 동일한 Markdown을 answer_markdown에 넣어 생성하고 output_path를 함께 제공하세요.",
+        confirmation_argument: { user_confirmed_html: true },
+        rule: "HTML을 자동 생성하지 마세요. 사용자가 현재 요청에서 HTML을 명시적으로 요구했거나 최종 답변 후 생성 제안에 동의한 경우에만 user_confirmed_html=true로 호출하고, 최종 답변과 정확히 동일한 Markdown을 answer_markdown에 넣어 output_path를 제공하세요.",
         template: "오프라인 단일 HTML · A4 인쇄 · Word 서식 복사 · 원문 HTML 비활성화",
       },
     };

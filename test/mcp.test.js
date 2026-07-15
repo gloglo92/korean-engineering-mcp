@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -51,6 +51,9 @@ test('MCP stdio discovery exposes legacy and new tools', async () => {
       assert.ok(names.has(name), name);
     }
     assert.ok(names.size >= 14);
+    const htmlTool = listed.tools.find((tool) => tool.name === 'render_engineering_answer_html');
+    assert.ok(htmlTool.inputSchema.required.includes('user_confirmed_html'));
+    assert.match(htmlTool.description, /요청했거나.*동의한 경우에만/);
   });
 });
 
@@ -86,9 +89,25 @@ test('MCP domain classifier returns airport law search hints without external AP
 test('MCP HTML tool writes a real safe report artifact', async () => {
   await withClient(async (client, outputDir) => {
     const answer = '## 결론\n- **조건부 가능**\n\n## 확인 근거\n- KDS 원문 추가 확인 필요';
+    const denied = await client.callTool({
+      name: 'render_engineering_answer_html',
+      arguments: {
+        user_confirmed_html: false,
+        title: '동의 전 검토서',
+        answer_markdown: answer,
+        domain: 'airport',
+      },
+    });
+    const denialPayload = parseToolText(denied);
+    assert.equal(denied.isError, true);
+    assert.equal(denialPayload.generated, false);
+    assert.equal(denialPayload.reason, 'user_confirmation_required');
+    assert.deepEqual(readdirSync(outputDir), []);
+
     const result = await client.callTool({
       name: 'render_engineering_answer_html',
       arguments: {
+        user_confirmed_html: true,
         title: '공항 활주로 기준 검토',
         answer_markdown: answer,
         domain: 'airport',

@@ -71,7 +71,10 @@ try {
       const candidates = Number(summary.total_candidates || 0);
       const selectedCount = Number(summary.selected_count || 0);
       const budgetOk = selectedCount > 0 && selectedCount <= 5;
-      const ok = domainOk && !apiError && candidates > 0 && budgetOk;
+      const htmlOptInOk = payload.html_delivery?.optional === true
+        && payload.html_delivery?.confirmation_required === true
+        && payload.html_delivery?.confirmation_argument?.user_confirmed_html === true;
+      const ok = domainOk && !apiError && candidates > 0 && budgetOk && htmlOptInOk;
       if (!ok) failed += 1;
       console.log(JSON.stringify({
         domain: sample.domain,
@@ -81,6 +84,7 @@ try {
         total_candidates: candidates,
         selected_count: selectedCount,
         max_evidence: Number(summary.max_evidence || 0),
+        html_opt_in: htmlOptInOk,
         direct_standard_sections: summary.direct_standard_sections || 0,
         direct_law_articles: summary.direct_law_articles || 0,
         direct_admin_rule_articles: summary.direct_admin_rule_articles || 0,
