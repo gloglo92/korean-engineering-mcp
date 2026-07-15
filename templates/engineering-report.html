@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="referrer" content="no-referrer">
+  <meta name="engineering-answer-sha256" content="{{ANSWER_SHA256}}">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>{{TITLE}}</title>
+  <style>
+    :root {
+      --navy: #12304a;
+      --blue: #1f5f8b;
+      --cyan: #2b819d;
+      --ink: #17212b;
+      --muted: #5d6b78;
+      --line: #d8e1e8;
+      --soft: #eef5f8;
+      --paper: #ffffff;
+      --canvas: #edf1f4;
+      --ok: #1b6b4b;
+      --warn: #9a6700;
+      --danger: #a63d40;
+      --shadow: 0 18px 45px rgba(18, 48, 74, .13);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.72;
+      word-break: keep-all;
+      overflow-wrap: anywhere;
+    }
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      width: min(100%, 980px);
+      margin: 0 auto;
+      padding: 10px 18px;
+      background: rgba(237, 241, 244, .93);
+      backdrop-filter: blur(8px);
+    }
+    .toolbar button {
+      appearance: none;
+      border: 1px solid #b9cad6;
+      border-radius: 8px;
+      background: #fff;
+      color: var(--navy);
+      padding: 8px 13px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .toolbar button.primary { background: var(--navy); color: #fff; border-color: var(--navy); }
+    .toolbar button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(18, 48, 74, .12); }
+    .page {
+      width: min(calc(100% - 32px), 980px);
+      margin: 0 auto 48px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+    .report-header {
+      position: relative;
+      overflow: hidden;
+      padding: 42px 54px 32px;
+      color: #fff;
+      background: linear-gradient(128deg, var(--navy) 0%, #174868 54%, var(--cyan) 100%);
+    }
+    .report-header::after {
+      content: "";
+      position: absolute;
+      width: 260px;
+      height: 260px;
+      right: -110px;
+      top: -130px;
+      border: 1px solid rgba(255, 255, 255, .25);
+      border-radius: 50%;
+      box-shadow: 0 0 0 38px rgba(255, 255, 255, .05), 0 0 0 78px rgba(255, 255, 255, .035);
+    }
+    .eyebrow { margin: 0 0 12px; font-size: 12px; font-weight: 800; letter-spacing: .14em; opacity: .82; }
+    .report-header h1 { position: relative; z-index: 1; margin: 0; max-width: 760px; color: #fff; font-size: clamp(27px, 4vw, 40px); line-height: 1.3; letter-spacing: -.035em; }
+    .header-summary { position: relative; z-index: 1; margin-top: 17px; display: flex; flex-wrap: wrap; gap: 8px; }
+    .badge { display: inline-flex; align-items: center; min-height: 27px; padding: 4px 10px; border: 1px solid rgba(255,255,255,.32); border-radius: 999px; background: rgba(255,255,255,.1); font-size: 12px; font-weight: 700; }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      border-bottom: 1px solid var(--line);
+      background: #f9fbfc;
+    }
+    .meta-item { min-height: 74px; padding: 14px 18px; border-right: 1px solid var(--line); }
+    .meta-item:last-child { border-right: 0; }
+    .meta-label { display: block; margin-bottom: 4px; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .06em; }
+    .meta-value { display: block; color: var(--navy); font-size: 13px; font-weight: 700; }
+    main { padding: 38px 54px 52px; }
+    main > :first-child { margin-top: 0; }
+    h1, h2, h3, h4 { color: var(--navy); line-height: 1.38; letter-spacing: -.025em; break-after: avoid-page; }
+    main h1 { margin: 2.1em 0 .7em; font-size: 28px; }
+    main h2 { margin: 2.05em 0 .72em; padding: 0 0 9px 13px; border-left: 5px solid var(--cyan); border-bottom: 1px solid var(--line); font-size: 22px; }
+    main h3 { margin: 1.75em 0 .55em; font-size: 18px; }
+    main h4 { margin: 1.5em 0 .45em; font-size: 16px; }
+    p { margin: .7em 0 1em; }
+    strong { color: #0d3856; }
+    ul, ol { margin: .55em 0 1.15em; padding-left: 1.45em; }
+    li { margin: .35em 0; padding-left: .15em; }
+    li::marker { color: var(--blue); font-weight: 800; }
+    blockquote {
+      margin: 1.25em 0;
+      padding: 14px 18px;
+      border-left: 4px solid #6ba4b8;
+      background: var(--soft);
+      color: #294353;
+    }
+    blockquote > :first-child { margin-top: 0; }
+    blockquote > :last-child { margin-bottom: 0; }
+    table { width: 100%; margin: 1.25em 0 1.65em; border-collapse: collapse; table-layout: auto; font-size: 13px; break-inside: avoid-page; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    th, td { padding: 10px 12px; border: 1px solid #ccd8e0; text-align: left; vertical-align: top; }
+    th { background: var(--navy); color: #fff; font-weight: 800; }
+    tbody tr:nth-child(even) { background: #f7fafb; }
+    .image-alt { display: inline-block; padding: 3px 7px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); background: #f7fafb; font-size: .9em; }
+    code { padding: 2px 5px; border-radius: 4px; background: #eef2f5; color: #9b2736; font-family: "D2Coding", Consolas, monospace; font-size: .92em; word-break: break-all; }
+    pre { overflow-x: auto; margin: 1.25em 0; padding: 16px 18px; border: 1px solid #d5dee5; border-radius: 8px; background: #f5f7f9; white-space: pre-wrap; }
+    pre code { padding: 0; background: transparent; color: #243746; }
+    a { color: #0b6090; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    hr { margin: 2em 0; border: 0; border-top: 1px solid var(--line); }
+    .report-footer { display: flex; justify-content: space-between; gap: 20px; padding: 20px 54px 28px; border-top: 1px solid var(--line); color: var(--muted); background: #fafcfd; font-size: 11px; }
+    .copy-status { align-self: center; min-width: 90px; color: var(--ok); font-size: 12px; font-weight: 800; text-align: right; }
+    @media (max-width: 720px) {
+      body { font-size: 14px; }
+      .page { width: 100%; margin-bottom: 0; box-shadow: none; }
+      .toolbar { width: 100%; }
+      .report-header, main { padding-left: 23px; padding-right: 23px; }
+      .meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .meta-item:nth-child(2) { border-right: 0; }
+      .report-footer { padding-left: 23px; padding-right: 23px; }
+    }
+    @page { size: A4; margin: 15mm 14mm 16mm; }
+    @media print {
+      body { background: #fff; color: #000; font-size: 10.5pt; line-height: 1.58; }
+      .toolbar { display: none !important; }
+      .page { width: auto; margin: 0; box-shadow: none; }
+      .report-header { padding: 16mm 13mm 10mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .report-header h1 { font-size: 24pt; }
+      .meta-grid { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .meta-item { min-height: auto; padding: 8px 10px; }
+      main { padding: 10mm 13mm 12mm; }
+      main h2 { font-size: 15pt; margin-top: 1.6em; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      main h3 { font-size: 12.5pt; }
+      table, blockquote, pre { break-inside: avoid; }
+      th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      a { color: #000; text-decoration: none; }
+      a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 8pt; color: #555; word-break: break-all; }
+      .report-footer { padding: 8mm 13mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar" aria-label="문서 도구">
+    <span id="copy-status" class="copy-status" role="status" aria-live="polite"></span>
+    <button type="button" onclick="copyReport()">보고서 복사</button>
+    <button type="button" class="primary" onclick="window.print()">인쇄 / PDF</button>
+  </div>
+  <article class="page" id="report-root">
+    <header class="report-header">
+      <p class="eyebrow">KOREAN ENGINEERING · GROUNDED REPORT</p>
+      <h1>{{TITLE}}</h1>
+      <div class="header-summary">
+        <span class="badge">{{DOMAIN_LABEL}}</span>
+        <span class="badge">{{DOCUMENT_STATUS}}</span>
+      </div>
+    </header>
+    <section class="meta-grid" aria-label="문서 정보">
+      {{META_ITEMS}}
+    </section>
+    <main id="report-content">
+      {{BODY_HTML}}
+    </main>
+    <footer class="report-footer">
+      <span>본 문서는 법령·건설기준 등 확인 근거와 한계를 함께 제시하기 위한 엔지니어링 검토 양식입니다.</span>
+      <span>{{GENERATOR_LABEL}}</span>
+    </footer>
+  </article>
+  <script>
+    async function copyReport() {
+      const status = document.getElementById('copy-status');
+      const content = document.getElementById('report-content');
+      const title = document.querySelector('.report-header h1').innerText;
+      const plain = title + '\n\n' + content.innerText;
+      const html = '<h1>' + escapeHtml(title) + '</h1>' + content.innerHTML;
+      try {
+        if (navigator.clipboard && window.ClipboardItem) {
+          const item = new ClipboardItem({
+            'text/plain': new Blob([plain], { type: 'text/plain' }),
+            'text/html': new Blob([html], { type: 'text/html' })
+          });
+          await navigator.clipboard.write([item]);
+        } else if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(plain);
+        } else {
+          fallbackCopy(content);
+        }
+        status.textContent = '복사 완료';
+      } catch (error) {
+        try {
+          fallbackCopy(content);
+          status.textContent = '복사 완료';
+        } catch (_) {
+          status.textContent = '본문을 선택해 복사하세요';
+        }
+      }
+      window.setTimeout(() => { status.textContent = ''; }, 2500);
+    }
+    function fallbackCopy(element) {
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      if (!document.execCommand('copy')) throw new Error('copy failed');
+      selection.removeAllRanges();
+    }
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, function(char) {
+        return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[char];
+      });
+    }
+  </script>
+</body>
+</html>

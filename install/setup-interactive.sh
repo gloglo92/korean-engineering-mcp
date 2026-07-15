@@ -57,8 +57,12 @@ if [ "$INTERACTIVE" = "1" ]; then
     printf '\n'
   fi
   if [ -z "${REFERENCE_DIR:-}" ]; then
-    printf 'REFERENCE_DIR 입력(선택, 없으면 Enter): '
+    printf 'REFERENCE_DIR 입력(선택, 전 분야 Markdown/TXT 루트, 없으면 Enter): '
     read -r REFERENCE_DIR || true
+  fi
+  if [ -z "${ENGINEERING_OUTPUT_DIR:-}" ]; then
+    printf 'ENGINEERING_OUTPUT_DIR 입력(선택, HTML 출력 폴더, 기본값 사용 시 Enter): '
+    read -r ENGINEERING_OUTPUT_DIR || true
   fi
 fi
 
@@ -82,6 +86,10 @@ umask 077
   if [ -n "${REFERENCE_DIR:-}" ]; then
     printf 'REFERENCE_DIR=%s\n' "$(env_quote "$REFERENCE_DIR")"
   fi
+  if [ -n "${ENGINEERING_OUTPUT_DIR:-}" ]; then
+    printf 'ENGINEERING_OUTPUT_DIR=%s\n' "$(env_quote "$ENGINEERING_OUTPUT_DIR")"
+  fi
+  printf 'ENGINEERING_TIMEZONE=%s\n' "$(env_quote "${ENGINEERING_TIMEZONE:-Asia/Seoul}")"
 } > "$ENV_OUT"
 chmod 600 "$ENV_OUT"
 
@@ -95,18 +103,13 @@ case "$CLIENT" in
     install_skill claude || true
     if command -v claude >/dev/null 2>&1; then
       echo 'Claude Code MCP 등록을 시도합니다.'
-      if [ -n "${REFERENCE_DIR:-}" ]; then
-        claude mcp add korean-engineering-mcp \
-          -e KCSC_API_KEY="$KCSC_API_KEY" \
-          -e LAW_API_KEY="$LAW_API_KEY" \
-          -e REFERENCE_DIR="$REFERENCE_DIR" \
-          -- npx -y "$REPO_SPEC"
-      else
-        claude mcp add korean-engineering-mcp \
-          -e KCSC_API_KEY="$KCSC_API_KEY" \
-          -e LAW_API_KEY="$LAW_API_KEY" \
-          -- npx -y "$REPO_SPEC"
-      fi
+      claude mcp add korean-engineering-mcp \
+        -e KCSC_API_KEY="$KCSC_API_KEY" \
+        -e LAW_API_KEY="$LAW_API_KEY" \
+        -e REFERENCE_DIR="${REFERENCE_DIR:-}" \
+        -e ENGINEERING_OUTPUT_DIR="${ENGINEERING_OUTPUT_DIR:-}" \
+        -e ENGINEERING_TIMEZONE="${ENGINEERING_TIMEZONE:-Asia/Seoul}" \
+        -- npx -y "$REPO_SPEC"
     else
       echo 'claude 명령을 찾지 못했습니다. 아래 Generic MCP JSON을 사용하세요.'
     fi
@@ -141,7 +144,8 @@ cat <<EOF
 - API 키 값은 화면에 다시 표시하지 않습니다.
 - 이 파일은 백업/참고용입니다. 셸에서 'set -a; . $ENV_OUT; set +a'로 불러오거나,
   MCP 클라이언트 설정의 env 항목에 동일한 값을 넣으세요.
-- REFERENCE_DIR은 선택사항입니다. 상수도/하수도 설계기준 해설편 Markdown 파일이 있으면 지정하세요.
+- REFERENCE_DIR은 선택사항입니다. 전 분야 Markdown/TXT 참고자료 루트를 지정할 수 있습니다.
+- ENGINEERING_OUTPUT_DIR은 선택사항입니다. 생략 시 ~/.korean-engineering-mcp/outputs를 사용합니다.
 
 Generic MCP JSON:
 {
@@ -152,12 +156,14 @@ Generic MCP JSON:
       "env": {
         "KCSC_API_KEY": "<입력한 KCSC_API_KEY>",
         "LAW_API_KEY": "<입력한 LAW_API_KEY>",
-        "REFERENCE_DIR": "${REFERENCE_DIR:-}"
+        "REFERENCE_DIR": "${REFERENCE_DIR:-}",
+        "ENGINEERING_OUTPUT_DIR": "${ENGINEERING_OUTPUT_DIR:-}",
+        "ENGINEERING_TIMEZONE": "${ENGINEERING_TIMEZONE:-Asia/Seoul}"
       }
     }
   }
 }
 
 설치 후 확인 질문 예시:
-  하수도 기술진단 주기와 근거를 찾아서 답해줘
+  도로 배수시설 기준을 근거로 검토하고, 답변과 동일한 HTML 보고서도 생성해줘
 EOF

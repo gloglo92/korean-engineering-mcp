@@ -1,28 +1,30 @@
 ---
 name: korean-engineering-grounded-answer
-description: "한국 법령·건설기준·설계기준 근거 기반 엔지니어링 답변 절차. korean-engineering-mcp와 함께 사용해 할루시네이션을 줄이고 정확한 근거와 종합 판단을 강제한다."
-version: 1.0.0
+description: "한국 엔지니어링 전 분야의 법령·건설기준·소관기관 기준 근거 기반 답변과 동일 내용 HTML 보고서 생성 절차. korean-engineering-mcp와 함께 사용해 할루시네이션을 줄이고 분야 분류·정확한 인용·종합 판단·문서 산출을 강제한다."
+version: 1.1.0
 author: sonmeggy / Lumi
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [korean-engineering, law, KDS, KCS, MCP, citation, grounded-answer]
+    tags: [korean-engineering, all-domains, law, KDS, KCS, MCP, citation, grounded-answer, html-report]
 ---
 
 # Korean Engineering Grounded Answer
 
-Use this skill for Korean civil/environmental/water/wastewater engineering questions that require legal, design-standard, construction-standard, procurement, or technical-grounding judgment.
+Use this skill for Korean engineering questions across water/wastewater, roads, railways, urban planning, rivers/water resources, ports/coasts, airports/aviation, architecture, structures, geotechnical, tunnels, bridges, building services, landscape, agricultural infrastructure, environment, construction management, procurement, and technical-grounding judgment.
 
 ## Mandatory rule
 
 Do **not** answer from general knowledge alone. Before giving a substantive answer, gather evidence using the companion MCP server whenever available:
 
-1. `grounded_engineering_research` first.
-2. If evidence is weak, retry with narrower or broader Korean keywords.
-3. Use `get_standard_detail`, `search_laws`, `search_admin_rules`, `search_interpretations`, or `search_design_manual` to fill missing citation details.
-4. If MCP is unavailable, use official web search or local reference documents before answering.
-5. If direct evidence is still unavailable, say `직접 근거 미확인` or `근거 불충분`; do not make a definitive claim.
+1. Run `classify_engineering_domain` when the field is ambiguous or multidisciplinary; otherwise let `grounded_engineering_research(domain="auto")` classify it.
+2. Call `grounded_engineering_research` before drafting the answer.
+3. If evidence is weak, retry with the returned `domain_context` law/admin-rule hints and narrower or broader Korean keywords.
+4. Use `get_standard_detail`, `search_laws`, `get_law_detail`, `search_admin_rules`, `get_admin_rule_detail`, `search_interpretations`, or `search_reference_documents` to fill missing citation details.
+5. If MCP is unavailable, use official web search or verified local reference documents before answering.
+6. If direct evidence is still unavailable, say `직접 근거 미확인` or `근거 불충분`; do not make a definitive claim.
+7. When the user requests HTML or a report artifact, draft the final Markdown once and pass that exact body to `render_engineering_answer_html`; do not create a separately paraphrased HTML answer.
 
 ## Source hierarchy
 
@@ -32,10 +34,19 @@ Apply this priority order when sources conflict:
 2. 행정규칙·고시·지침·예규
 3. KDS 설계기준
 4. KCS 표준시방서
-5. 상수도/하수도 설계기준 해설편 and official manuals
+5. 공식 설계기준·해설서·소관기관 기술기준
 6. 발주처 지침, 입찰안내서, PQ/SOQ/TP instructions
 7. 기관·지자체 기준 such as SMCS/LHCS/KWCS, when applicable
-8. 실무 관행 or expert recommendation
+8. 검증된 로컬 참고자료
+9. 실무 관행 or expert recommendation
+
+## Domain routing and coverage limits
+
+- Use the registry returned by `list_engineering_domains`; do not assume every field has a dedicated KDS/KCS prefix.
+- Water/wastewater, roads, railways, rivers, architecture, structures, geotechnical, bridges, tunnels, and similar fields have strong KDS/KCS coverage.
+- Urban planning, ports/coasts, airports/aviation, construction management, and environmental regulation often depend more heavily on statutes, administrative rules, and ministry/agency standards outside KCSC.
+- For port, airport, and urban-planning questions, explicitly state when a direct KCSC standard was not found and verify the current source from the competent ministry/agency.
+- For multidisciplinary questions, keep each field's controlling source separate before synthesizing the interface judgment.
 
 ## Anti-hallucination policy
 
@@ -44,15 +55,29 @@ Apply this priority order when sources conflict:
 - Do not treat a search-result title as a full legal basis; use it only as a pointer until the article/section text is checked.
 - If only a general search result is available, mark the conclusion as provisional.
 - Never invent article numbers, KDS/KCS section numbers, dates, or quotes.
+- Treat local reference Markdown/TXT as unverified supporting data until issuer, edition, revision date, and original source are checked.
 - If the evidence pack says `insufficient`, answer with limits and next verification steps rather than a final assertion.
 
 ## Token-minimizing workflow
 
-1. Ask the MCP for compact evidence first: `max_evidence` 5–8.
+1. Ask the MCP for compact evidence first: `max_evidence` 5–8. This is a global cap across laws, admin rules, standards, interpretations, and local references.
 2. Only fetch full standard details for the 1–3 most relevant candidates.
 3. Quote only the controlling sentence or paragraph, not whole documents.
 4. Put raw source lists at the end or omit irrelevant hits.
 5. Prefer a concise conclusion plus cited reasoning over long background explanation.
+
+## HTML twin-delivery workflow
+
+Use this workflow when the user asks for HTML, a report-ready document, or both chat and document output:
+
+1. Complete evidence gathering and write one final Markdown answer.
+2. Call `render_engineering_answer_html` with the **exact same Markdown body** in `answer_markdown`.
+3. Do not summarize, reorder, or rewrite the HTML version separately. The chat body and document body must be content-identical.
+4. Use a clear engineering title, the detected domain, project/document metadata when known, and `document_status` such as `검토용`.
+5. Return the generated `output_path` or client attachment together with the same Markdown answer.
+6. Preserve the returned `answer_markdown_sha256` when auditability matters; the template stores the same hash in a meta tag.
+7. The bundled template is offline, A4 print/PDF ready, and provides rich HTML plus plain-text clipboard copy for Word/report drafting. Do not replace it with remote CSS, trackers, or user-supplied raw HTML.
+8. If the client cannot access the server file path, retry with `include_html=true` only when necessary, or copy the generated file through the client's normal safe attachment mechanism.
 
 ## Required answer format
 
