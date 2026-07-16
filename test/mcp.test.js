@@ -54,6 +54,7 @@ test('MCP stdio discovery exposes legacy and new tools', async () => {
     const htmlTool = listed.tools.find((tool) => tool.name === 'render_engineering_answer_html');
     assert.ok(htmlTool.inputSchema.required.includes('user_confirmed_html'));
     assert.match(htmlTool.description, /요청했거나.*동의한 경우에만/);
+    assert.match(htmlTool.description, /MathML/);
   });
 });
 
@@ -88,7 +89,7 @@ test('MCP domain classifier returns airport law search hints without external AP
 
 test('MCP HTML tool writes a real safe report artifact', async () => {
   await withClient(async (client, outputDir) => {
-    const answer = '## 결론\n- **조건부 가능**\n\n## 확인 근거\n- KDS 원문 추가 확인 필요';
+    const answer = '## 결론\n- **조건부 가능**\n\n유량은 $Q = A v$로 검토한다.\n\n$$h_f = f \\frac{L}{D} \\frac{v^2}{2g}$$\n\n## 확인 근거\n- KDS 원문 추가 확인 필요';
     const denied = await client.callTool({
       name: 'render_engineering_answer_html',
       arguments: {
@@ -122,6 +123,9 @@ test('MCP HTML tool writes a real safe report artifact', async () => {
     const html = readFileSync(payload.output_path, 'utf8');
     assert.match(html, /공항 활주로 기준 검토/);
     assert.match(html, /조건부 가능/);
+    assert.match(html, /class="math-inline"/);
+    assert.match(html, /class="math-display"/);
+    assert.match(html, /<math\b/);
     assert.match(html, /보고서 복사/);
     assert.equal(payload.answer_markdown_sha256.length, 64);
     assert.equal(payload.html_sha256.length, 64);

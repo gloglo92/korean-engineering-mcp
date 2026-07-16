@@ -127,6 +127,32 @@
     th { background: var(--navy); color: #fff; font-weight: 800; }
     tbody tr:nth-child(even) { background: #f7fafb; }
     .image-alt { display: inline-block; padding: 3px 7px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); background: #f7fafb; font-size: .9em; }
+    .math-inline {
+      display: inline-flex;
+      max-width: 100%;
+      align-items: baseline;
+      vertical-align: -.12em;
+      white-space: nowrap;
+    }
+    .math-display {
+      display: block;
+      max-width: 100%;
+      margin: 1.35em 0;
+      padding: 14px 16px;
+      overflow-x: auto;
+      border: 1px solid #d6e2e9;
+      border-radius: 8px;
+      background: #f8fbfc;
+      text-align: center;
+      break-inside: avoid-page;
+    }
+    .math-display math { display: inline-block; margin: 0 auto; font-size: 1.15em; }
+    math {
+      font-family: "STIX Two Math", "Cambria Math", "Latin Modern Math", "Times New Roman", serif;
+      font-size: 1.08em;
+      math-style: normal;
+    }
+    merror { color: var(--danger); }
     code { padding: 2px 5px; border-radius: 4px; background: #eef2f5; color: #9b2736; font-family: "D2Coding", Consolas, monospace; font-size: .92em; word-break: break-all; }
     pre { overflow-x: auto; margin: 1.25em 0; padding: 16px 18px; border: 1px solid #d5dee5; border-radius: 8px; background: #f5f7f9; white-space: pre-wrap; }
     pre code { padding: 0; background: transparent; color: #243746; }
@@ -155,7 +181,8 @@
       main { padding: 10mm 13mm 12mm; }
       main h2 { font-size: 15pt; margin-top: 1.6em; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       main h3 { font-size: 12.5pt; }
-      table, blockquote, pre { break-inside: avoid; }
+      table, blockquote, pre, .math-display { break-inside: avoid; }
+      .math-display { padding: 8px 10px; overflow: visible; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       a { color: #000; text-decoration: none; }
       a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 8pt; color: #555; word-break: break-all; }
@@ -194,7 +221,7 @@
       const status = document.getElementById('copy-status');
       const content = document.getElementById('report-content');
       const title = document.querySelector('.report-header h1').innerText;
-      const plain = title + '\n\n' + content.innerText;
+      const plain = title + '\n\n' + reportPlainText(content);
       const html = '<h1>' + escapeHtml(title) + '</h1>' + content.innerHTML;
       try {
         if (navigator.clipboard && window.ClipboardItem) {
@@ -218,6 +245,15 @@
         }
       }
       window.setTimeout(() => { status.textContent = ''; }, 2500);
+    }
+    function reportPlainText(element) {
+      const clone = element.cloneNode(true);
+      clone.querySelectorAll('.math-inline, .math-display').forEach(function(node) {
+        const tex = node.getAttribute('data-tex') || '';
+        const marker = node.classList.contains('math-display') ? '\n$$' + tex + '$$\n' : '$' + tex + '$';
+        node.replaceWith(document.createTextNode(marker));
+      });
+      return clone.innerText || clone.textContent || '';
     }
     function fallbackCopy(element) {
       const selection = window.getSelection();

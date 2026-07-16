@@ -4,7 +4,7 @@
 
 Claude, Hermes, OpenClaw, Antigravity, VS Code/Copilot/Cline/Cursor 계열 등 MCP 호환 클라이언트에서 사용할 수 있습니다.
 
-## v1.3 핵심 개선
+## v1.4 핵심 개선
 
 - **전 분야 라우팅**: 상하수도뿐 아니라 도로, 철도, 도시·단지, 하천·수자원, 항만·해안, 공항·항공, 건축, 구조, 지반, 교량, 터널, 설비, 조경, 농업생산기반, 환경, 건설사업관리 등을 자동 분류합니다.
 - **분야별 검색 계획**: KDS/KCS 코드 계열, 법령명, 행정규칙·소관기관 기준 힌트를 함께 제공합니다.
@@ -13,6 +13,10 @@ Claude, Hermes, OpenClaw, Antigravity, VS Code/Copilot/Cline/Cursor 계열 등 M
 - **전 분야 로컬 자료**: `REFERENCE_DIR` 아래의 `.md`, `.markdown`, `.txt`를 제한된 깊이·파일 수·크기 안에서 분야/섹션 단위로 검색합니다.
 - **선택적 동일 내용 HTML**: HTML은 기본 자동생성하지 않습니다. 사용자가 직접 요청하거나 채팅 답변 후 생성 제안에 동의한 경우에만 최종 Markdown을 그대로 입력해 오프라인 단일 HTML, A4 인쇄/PDF, Word 서식 복사가 가능한 보고서를 생성합니다.
 - **안전한 문서 생성**: 사용자 Markdown의 raw HTML을 실행하지 않고, 파일명과 출력 경로를 제한하며, 입력 Markdown SHA-256을 HTML 메타에 기록합니다.
+- **오프라인 수식 렌더링**: `$...$`와 `$$...$$` TeX 수식을 서버에서 안전한 MathML로 변환해 외부 스크립트·폰트 없이 브라우저·인쇄/PDF에서 표시합니다.
+- **관리 스킬 동기화**: MCP 코드 업데이트와 별개로 남아 있던 기존 클라이언트 스킬을 전용 명령으로 백업·교체·SHA-256 검증하여 최신 HTML opt-in 정책까지 함께 반영합니다.
+
+상세 원인·수정·검증 내역은 [docs/V1.4_SKILL_SYNC_AND_MATH.md](docs/V1.4_SKILL_SYNC_AND_MATH.md)를 참고하세요.
 
 ## 지원 분야
 
@@ -75,6 +79,7 @@ Claude, Hermes, OpenClaw, Antigravity, VS Code/Copilot/Cline/Cursor 계열 등 M
 ### HTML 문서
 
 - `render_engineering_answer_html` — 사용자 요청/동의 확인(`user_confirmed_html=true`) 후 최종 답변 Markdown과 동일한 HTML 보고서 생성
+  - 인라인 TeX `$Q = A v$`와 블록 TeX `$$h_f = f \\frac{L}{D} \\frac{v^2}{2g}$$`를 오프라인 MathML로 렌더링
 
 ## AI 도구에 URL만 주고 설치하기
 
@@ -159,6 +164,8 @@ claude mcp add korean-engineering-mcp \
 ./install/install-hermes.sh
 ```
 
+`install-hermes.sh`는 신규 설치와 업데이트를 모두 처리합니다. 기존 스킬이 다르면 먼저 `$HERMES_HOME/backups/korean-engineering-mcp/` 아래에 백업하고, 번들 스킬로 교체한 뒤 SHA-256을 다시 확인합니다.
+
 그 뒤 현재 Hermes 버전의 MCP 명령으로 등록합니다. 예:
 
 ```bash
@@ -167,6 +174,31 @@ hermes mcp test korean-engineering-mcp
 ```
 
 자세한 클라이언트별 설치법은 [docs/INSTALLATION.md](docs/INSTALLATION.md)를 보세요.
+
+### 기존 설치 업데이트
+
+MCP 서버만 새 버전으로 갱신해도 이미 복사된 Hermes/Claude/Antigravity 스킬은 자동으로 바뀌지 않습니다. 업데이트 시 **스킬 동기화도 반드시 함께 실행**하세요.
+
+로컬 clone을 사용한다면:
+
+```bash
+git pull --ff-only
+npm ci
+./install/install-hermes.sh
+```
+
+GitHub 패키지를 `npx`로 사용하고 로컬 clone이 없다면:
+
+```bash
+npm exec --yes --package=github:sonmeggy/korean-engineering-mcp -- \
+  korean-engineering-mcp-sync-skill hermes
+```
+
+- `hermes` 대신 `claude`, `antigravity`, `all`을 지정할 수 있습니다.
+- 같은 내용이면 `unchanged`로 종료하며 불필요한 백업을 만들지 않습니다.
+- 내용이 다르면 기존 디렉터리를 백업하고 설치 후 source/installed SHA-256 일치를 검증합니다.
+- 동기화 뒤 Hermes에서는 새 세션 또는 `/reload-skills`, MCP 프로세스에는 `/reload-mcp`를 적용해야 현재 대화에 새 정책·도구가 반영됩니다.
+- `npm postinstall`에서 사용자 홈을 몰래 수정하지 않습니다. 스킬 갱신은 위 명시적 명령에서만 수행합니다.
 
 ## 권장 사용 흐름
 
@@ -211,6 +243,7 @@ HTML은 기본 산출물이 아닙니다. 먼저 채팅 답변을 제공한 뒤 
 HTML 템플릿 특징:
 
 - 외부 CSS/폰트/트래커 없이 오프라인 동작
+- TeX `$...$` / `$$...$$`를 서버 렌더링 MathML로 변환하여 브라우저·인쇄/PDF에 표시
 - 가독성 높은 엔지니어링 검토서 헤더·메타정보·본문 구조
 - A4 인쇄 및 PDF 저장 최적화
 - `보고서 복사` 버튼: 지원 브라우저에서는 HTML+plain text를 함께 복사해 Word 보고서 작성에 활용

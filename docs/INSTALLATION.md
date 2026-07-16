@@ -74,11 +74,13 @@ claude mcp add korean-engineering-mcp \
 
 ## Hermes
 
-Skill 설치:
+Skill 설치 또는 업데이트:
 
 ```bash
 ./install/install-hermes.sh
 ```
+
+기존 설치 내용이 번들과 다르면 `$HERMES_HOME/backups/korean-engineering-mcp/` 아래에 백업한 뒤 교체하고 source/installed SHA-256 일치를 확인합니다.
 
 MCP 등록 명령 형식:
 
@@ -115,6 +117,33 @@ Skill 설치 도우미:
 ```
 
 `vscode` 모드는 기존 `.github/copilot-instructions.md`를 덮어쓰지 않습니다.
+
+## Existing installation update
+
+MCP 실행 패키지와 클라이언트 Skill은 별도 계층입니다. `git pull`, `npx` 재실행 또는 MCP 연결 테스트만으로는 이미 설치된 Skill의 HTML opt-in 정책이 갱신되지 않습니다.
+
+로컬 clone:
+
+```bash
+git pull --ff-only
+npm ci
+./install/install-skill.sh hermes
+```
+
+로컬 clone이 없는 GitHub 패키지 설치:
+
+```bash
+npm exec --yes --package=github:sonmeggy/korean-engineering-mcp -- \
+  korean-engineering-mcp-sync-skill hermes
+```
+
+동기화 결과는 다음 중 하나입니다.
+
+- `unchanged`: 설치본과 번들 SHA-256이 이미 동일
+- `installed`: 신규 설치 및 설치 후 해시 검증 완료
+- `updated`: 기존 설치본 백업 후 교체 및 해시 검증 완료
+
+실패는 무시하지 않고 non-zero로 종료합니다. 대상 Skill 디렉터리가 심볼릭 링크이면 안전을 위해 거부합니다. 업데이트 뒤 Hermes는 새 세션 또는 `/reload-skills`, 실행 중 MCP는 `/reload-mcp`로 다시 읽어야 합니다.
 
 ## Guided installer
 
@@ -178,6 +207,7 @@ hermes mcp test korean-engineering-mcp
 - 동의 전 `user_confirmed_html=false` 호출은 `user_confirmation_required`로 거부되고 파일이 생성되지 않는지
 - `output_path`가 설정한 `ENGINEERING_OUTPUT_DIR` 아래인지
 - HTML에 제목, 본문, `보고서 복사`, `인쇄 / PDF`가 있는지
+- `$Q = A v$`와 `$$h_f = f \\frac{L}{D} \\frac{v^2}{2g}$$`가 `<math>` MathML로 변환되고 원격 MathJax/KaTeX script가 없는지
 - `answer_markdown_sha256`과 HTML meta의 hash가 동일한지
 - 같은 파일명 재생성 시 기존 파일을 덮어쓰지 않는지
 
@@ -207,3 +237,4 @@ hermes mcp test korean-engineering-mcp
 5. 근거가 부족하면 `근거 불충분`으로 표시합니다.
 6. HTML은 사용자가 현재 요청에서 명시적으로 요구했거나 답변 후 생성 제안에 동의한 경우에만 `user_confirmed_html=true`로 렌더링합니다.
 7. HTML 요청/동의 시 최종 Markdown과 동일한 본문을 렌더링합니다.
+8. 수식은 `$...$` / `$$...$$` TeX로 작성해 오프라인 MathML로 렌더링하고, 원격 수식 스크립트를 추가하지 않습니다.
