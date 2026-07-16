@@ -100,7 +100,7 @@ install_skill() {
 
 case "$CLIENT" in
   claude)
-    install_skill claude || true
+    install_skill claude
     if command -v claude >/dev/null 2>&1; then
       echo 'Claude Code MCP 등록을 시도합니다.'
       claude mcp add korean-engineering-mcp \
@@ -115,18 +115,18 @@ case "$CLIENT" in
     fi
     ;;
   hermes)
-    install_skill hermes || true
+    install_skill hermes
     echo 'Hermes MCP 설정은 사용 중인 Hermes 버전에 맞춰 아래 Generic MCP JSON 또는 hermes mcp add 명령으로 등록하세요.'
     ;;
   openclaw)
     echo 'OpenClaw는 사용 중인 MCP 설정 파일/명령이 배포판별로 다를 수 있습니다. 아래 Generic MCP JSON을 등록하세요.'
     ;;
   antigravity)
-    install_skill antigravity || true
+    install_skill antigravity
     echo 'Antigravity MCP 설정에 아래 Generic MCP JSON을 등록하세요.'
     ;;
   vscode)
-    install_skill vscode || true
+    install_skill vscode
     echo 'VS Code 계열 확장(Copilot/Cline/Cursor 등)의 MCP 설정에 아래 Generic MCP JSON을 등록하세요.'
     ;;
   generic)

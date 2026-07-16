@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { basename, extname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import MarkdownIt from "markdown-it";
+import { installMathRendering } from "./math-renderer.js";
 
 const DEFAULT_TEMPLATE = new URL("../templates/engineering-report.html", import.meta.url);
 const DEFAULT_OUTPUT_DIR = join(homedir(), ".korean-engineering-mcp", "outputs");
@@ -11,12 +12,12 @@ const MAX_MARKDOWN_CHARS = 120_000;
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const UNSAFE_CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 
-const md = new MarkdownIt({
+const md = installMathRendering(new MarkdownIt({
   html: false,
   linkify: false,
   typographer: false,
   breaks: false,
-});
+}));
 
 md.validateLink = (value) => {
   try {

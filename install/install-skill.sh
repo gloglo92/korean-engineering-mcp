@@ -5,12 +5,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SKILL_SRC="$ROOT_DIR/skills/korean-engineering-grounded-answer"
 TARGET="${1:-hermes}"
 
-copy_skill_dir() {
-  local dst="$1"
-  mkdir -p "$(dirname "$dst")"
-  rm -rf "$dst"
-  cp -R "$SKILL_SRC" "$dst"
-  echo "installed: $dst"
+sync_skill_dir() {
+  local client="$1"
+  node "$ROOT_DIR/scripts/sync-skill.mjs" "$client"
 }
 
 install_project_instruction() {
@@ -27,21 +24,19 @@ install_project_instruction() {
 
 case "$TARGET" in
   hermes)
-    copy_skill_dir "${HERMES_HOME:-$HOME/.hermes}/skills/korean-engineering-grounded-answer"
+    sync_skill_dir hermes
     ;;
   claude)
-    copy_skill_dir "$HOME/.claude/skills/korean-engineering-grounded-answer"
+    sync_skill_dir claude
     ;;
   antigravity)
-    copy_skill_dir "$HOME/.gemini/antigravity/skills/korean-engineering-grounded-answer"
+    sync_skill_dir antigravity
     ;;
   vscode)
     install_project_instruction "$PWD/.github/copilot-instructions.md"
     ;;
   all)
-    copy_skill_dir "${HERMES_HOME:-$HOME/.hermes}/skills/korean-engineering-grounded-answer"
-    copy_skill_dir "$HOME/.claude/skills/korean-engineering-grounded-answer"
-    copy_skill_dir "$HOME/.gemini/antigravity/skills/korean-engineering-grounded-answer"
+    sync_skill_dir all
     ;;
   *)
     echo "Usage: $0 [hermes|claude|antigravity|vscode|all]" >&2

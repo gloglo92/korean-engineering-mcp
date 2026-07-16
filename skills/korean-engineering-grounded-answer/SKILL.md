@@ -1,7 +1,7 @@
 ---
 name: korean-engineering-grounded-answer
 description: "한국 엔지니어링 전 분야의 법령·건설기준·소관기관 기준 근거 기반 답변과 사용자 확인 후 선택적으로 동일 내용 HTML 보고서를 생성하는 절차. korean-engineering-mcp와 함께 사용해 할루시네이션을 줄이고 분야 분류·정확한 인용·종합 판단·문서 산출을 강제한다."
-version: 1.2.0
+version: 1.3.0
 author: sonmeggy / Lumi
 license: MIT
 platforms: [linux, macos, windows]
@@ -81,7 +81,9 @@ HTML generation is opt-in, not a default side effect.
 7. Return the generated `output_path` or client attachment together with the same Markdown answer.
 8. Preserve the returned `answer_markdown_sha256` when auditability matters; the template stores the same hash in a meta tag.
 9. The bundled template is offline, A4 print/PDF ready, and provides rich HTML plus plain-text clipboard copy for Word/report drafting. Do not replace it with remote CSS, trackers, or user-supplied raw HTML.
-10. If the client cannot access the server file path, retry with `include_html=true` only when necessary, or copy the generated file through the client's normal safe attachment mechanism.
+10. Write mathematical expressions with TeX delimiters (`$...$` inline and `$$...$$` display) when a formula is needed. The renderer converts those expressions to offline MathML; do not inject remote MathJax/KaTeX scripts or raw HTML.
+11. Keep the exact TeX source in the Markdown body so chat and HTML remain content-identical and the SHA-256 audit remains valid.
+12. If the client cannot access the server file path, retry with `include_html=true` only when necessary, or copy the generated file through the client's normal safe attachment mechanism.
 
 ## Required answer format
 

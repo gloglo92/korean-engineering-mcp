@@ -7,7 +7,10 @@ const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 const skill = readFileSync(new URL('../skills/korean-engineering-grounded-answer/SKILL.md', import.meta.url), 'utf8');
 const domains = readFileSync(new URL('../data/engineering-domains.json', import.meta.url), 'utf8');
 const htmlRenderer = readFileSync(new URL('../src/html-renderer.js', import.meta.url), 'utf8');
+const mathRenderer = readFileSync(new URL('../src/math-renderer.js', import.meta.url), 'utf8');
 const htmlTemplate = readFileSync(new URL('../templates/engineering-report.html', import.meta.url), 'utf8');
+const skillSync = readFileSync(new URL('../scripts/sync-skill.mjs', import.meta.url), 'utf8');
+const guidedInstaller = readFileSync(new URL('../install/setup-interactive.sh', import.meta.url), 'utf8');
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 test('does not ship a hard-coded LAW API key fallback', () => {
@@ -36,6 +39,7 @@ test('skill enforces evidence-first and citation-first answers', () => {
   assert.match(skill, /HTML is \*\*optional\*\*/);
   assert.match(skill, /user_confirmed_html=true/);
   assert.match(skill, /ask once.*identical HTML report/);
+  assert.match(skill, /offline MathML/);
 });
 
 test('README documents MCP plus skill installation', () => {
@@ -44,6 +48,9 @@ test('README documents MCP plus skill installation', () => {
   assert.match(readme, /AGENT_INSTALL\.md/);
   assert.match(readme, /setup-interactive\.sh/);
   assert.match(readme, /docs\/INSTALLATION\.md/);
+  assert.match(readme, /korean-engineering-mcp-sync-skill hermes/);
+  assert.match(readme, /\/reload-skills/);
+  assert.match(readme, /\/reload-mcp/);
 });
 
 test('ships a cross-domain registry for the requested engineering sectors', () => {
@@ -67,15 +74,25 @@ test('ships secure copy and print friendly HTML output', () => {
   assert.match(htmlRenderer, /MAX_MARKDOWN_CHARS = 120_000/);
   assert.match(htmlRenderer, /ENGINEERING_OUTPUT_DIR/);
   assert.match(htmlRenderer, /answer_markdown_sha256/);
+  assert.match(mathRenderer, /output:\s*"mathml"/);
+  assert.match(mathRenderer, /trust:\s*false/);
+  assert.match(mathRenderer, /maxExpand:\s*1_000/);
   assert.match(htmlTemplate, /Content-Security-Policy/);
   assert.match(htmlTemplate, /보고서 복사/);
   assert.match(htmlTemplate, /인쇄 \/ PDF/);
   assert.match(htmlTemplate, /@page \{ size: A4/);
+  assert.match(htmlTemplate, /\.math-display/);
+  assert.match(htmlTemplate, /reportPlainText/);
 });
 
-test('npm package includes runtime source, domain data, and HTML template', () => {
+test('npm package includes runtime source, domain data, HTML template, and managed skill updater', () => {
   for (const entry of ['src/', 'data/', 'templates/', 'scripts/']) {
     assert.ok(packageJson.files.includes(entry), entry);
   }
   assert.equal(packageJson.dependencies['@modelcontextprotocol/sdk'], '^1.29.0');
+  assert.equal(packageJson.dependencies.katex, '^0.17.0');
+  assert.equal(packageJson.bin['korean-engineering-mcp-sync-skill'], './scripts/sync-skill.mjs');
+  assert.match(skillSync, /backup_path/);
+  assert.match(skillSync, /installed_sha256/);
+  assert.doesNotMatch(guidedInstaller, /install_skill\s+(?:hermes|claude|antigravity)\s*\|\|\s*true/);
 });

@@ -666,11 +666,11 @@ server.tool(
 
 server.tool(
   "render_engineering_answer_html",
-  "사용자가 현재 대화에서 HTML 보고서를 명시적으로 요청했거나, 답변 후 제안에 동의한 경우에만 호출합니다. 최종 엔지니어링 답변 Markdown과 동일한 내용을 오프라인·A4 인쇄·Word 복사에 적합한 HTML 보고서로 생성합니다. 원문 HTML은 비활성화하고 출력은 전용 디렉터리로 제한합니다.",
+  "사용자가 현재 대화에서 HTML 보고서를 명시적으로 요청했거나, 답변 후 제안에 동의한 경우에만 호출합니다. 최종 엔지니어링 답변 Markdown과 동일한 내용을 오프라인·A4 인쇄·Word 복사에 적합한 HTML 보고서로 생성하며, $...$와 $$...$$ TeX 수식은 오프라인 MathML로 렌더링합니다. 원문 HTML은 비활성화하고 출력은 전용 디렉터리로 제한합니다.",
   {
     user_confirmed_html: z.boolean().describe("사용자가 이번 답변의 HTML 생성을 명시적으로 요청하거나 제안에 동의했음을 확인. 동의한 경우에만 true"),
     title: z.string().min(1).max(160).describe("문서 제목"),
-    answer_markdown: z.string().min(1).max(120000).describe("최종 답변과 정확히 동일한 Markdown 본문"),
+    answer_markdown: z.string().min(1).max(120000).describe("최종 답변과 정확히 동일한 Markdown 본문. 수식은 인라인 $...$ 또는 블록 $$...$$ TeX 사용"),
     domain: z.string().default("auto").describe("auto 또는 분야 key/한글명"),
     project_name: z.string().max(120).optional().describe("프로젝트명 또는 검토명"),
     document_id: z.string().max(80).optional().describe("문서번호"),
@@ -1276,7 +1276,7 @@ server.tool(
         tool: "render_engineering_answer_html",
         confirmation_argument: { user_confirmed_html: true },
         rule: "HTML을 자동 생성하지 마세요. 사용자가 현재 요청에서 HTML을 명시적으로 요구했거나 최종 답변 후 생성 제안에 동의한 경우에만 user_confirmed_html=true로 호출하고, 최종 답변과 정확히 동일한 Markdown을 answer_markdown에 넣어 output_path를 제공하세요.",
-        template: "오프라인 단일 HTML · A4 인쇄 · Word 서식 복사 · 원문 HTML 비활성화",
+        template: "오프라인 단일 HTML · A4 인쇄 · Word 서식 복사 · TeX 수식 MathML 렌더링 · 원문 HTML 비활성화",
       },
     };
 

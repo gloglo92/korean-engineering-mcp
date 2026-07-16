@@ -2,16 +2,11 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
-SKILL_SRC="$ROOT_DIR/skills/korean-engineering-grounded-answer"
-SKILL_DST="$HERMES_HOME/skills/korean-engineering-grounded-answer"
 
-mkdir -p "$(dirname "$SKILL_DST")"
-rm -rf "$SKILL_DST"
-cp -R "$SKILL_SRC" "$SKILL_DST"
+"$ROOT_DIR/install/install-skill.sh" hermes
 
 cat <<'MSG'
-✅ korean-engineering-grounded-answer skill installed for Hermes.
+✅ korean-engineering-grounded-answer skill installed/updated and hash-verified for Hermes.
 
 Next, add the MCP server to your MCP-capable client.
 Do not paste real API keys into shared chat. Set them as environment variables or client-side secrets.

@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // index.js를 import해도 stdio 서버가 연결되지 않도록 가드
 process.env.KOREAN_ENGINEERING_MCP_SKIP_AUTOSTART = '1';
@@ -31,6 +33,11 @@ const {
   discoverReferenceDocuments,
   searchReferenceDocuments,
 } = await import('../src/references.js');
+
+const {
+  hashSkillDirectory,
+  syncBundledSkill,
+} = await import('../scripts/sync-skill.mjs');
 
 test('parseDotEnv parses key=value lines and ignores comments', () => {
   const parsed = parseDotEnv('# comment\nKCSC_API_KEY=abc123\nLAW_API_KEY="quoted value"\n\nBROKEN_LINE\n');
@@ -213,6 +220,94 @@ test('HTML renderer preserves report structure while escaping untrusted raw HTML
     () => renderEngineeringAnswerHtml({ title: '제어문자', answer_markdown: '본문\u0000' }),
     /제어문자/,
   );
+});
+
+test('HTML renderer converts inline and display TeX to offline MathML', () => {
+  const markdown = [
+    '## 수식 검토',
+    '인라인 유량식 $Q = A v$를 적용한다.',
+    '',
+    '$$',
+    String.raw`h_f = f \frac{L}{D} \frac{v^2}{2g}`,
+    '$$',
+    '',
+    '코드 표기는 `$Q = A v$` 그대로 유지한다.',
+    String.raw`금액 표기는 \$1,000처럼 이스케이프하면 수식으로 해석하지 않는다.`,
+    '',
+    String.raw`악성 명령은 실행하지 않는다: $\href{javascript:alert(1)}{x}$`,
+  ].join('\n');
+  const rendered = renderEngineeringAnswerHtml({
+    title: '관로 손실수두 검토',
+    answer_markdown: markdown,
+    prepared_at: '2026-07-16 10:00 KST',
+  });
+
+  assert.match(rendered.html, /class="math-inline"/);
+  assert.equal((rendered.html.match(/class="math-inline"/g) || []).length, 2);
+  assert.match(rendered.html, /class="math-display"/);
+  assert.match(rendered.html, /<math\b/);
+  assert.match(rendered.html, /<mfrac>/);
+  assert.match(rendered.html, /<msup>/);
+  assert.match(rendered.html, /data-tex="Q = A v"/);
+  assert.match(rendered.html, /<code>\$Q = A v\$<\/code>/);
+  assert.match(rendered.html, /금액 표기는 \$1,000처럼/);
+  assert.doesNotMatch(rendered.html, /href="javascript:/i);
+  assert.doesNotMatch(rendered.html, /<script[^>]+(?:mathjax|katex)|https?:\/\/.*(?:mathjax|katex)/i);
+  assert.match(rendered.html, /math-style: normal/);
+});
+
+test('managed skill sync updates an existing install with backup and hash verification', () => {
+  const home = mkdtempSync(join(tmpdir(), 'kemcp-skill-home-'));
+  const hermesHome = join(home, '.hermes');
+  const destination = join(hermesHome, 'skills', 'korean-engineering-grounded-answer');
+  mkdirSync(destination, { recursive: true });
+  writeFileSync(join(destination, 'SKILL.md'), '---\nname: korean-engineering-grounded-answer\nversion: 1.1.0\n---\n\nOLD POLICY\n', 'utf8');
+  writeFileSync(join(destination, 'local-note.md'), 'user customization', 'utf8');
+
+  const env = { HOME: home, HERMES_HOME: hermesHome };
+  const first = syncBundledSkill({ client: 'hermes', env, now: new Date('2026-07-16T00:00:00Z') });
+  assert.equal(first.status, 'updated');
+  assert.equal(first.previous_version, '1.1.0');
+  assert.equal(first.installed_version, '1.3.0');
+  assert.equal(first.source_sha256, first.installed_sha256);
+  assert.equal(hashSkillDirectory(destination), first.source_sha256);
+  assert.match(readFileSync(join(destination, 'SKILL.md'), 'utf8'), /동일 내용의 HTML 보고서도 생성할까요/);
+  assert.match(readFileSync(join(destination, 'SKILL.md'), 'utf8'), /offline MathML/);
+  assert.ok(first.backup_path);
+  assert.equal(readFileSync(join(first.backup_path, 'local-note.md'), 'utf8'), 'user customization');
+  assert.match(readFileSync(join(first.backup_path, 'SKILL.md'), 'utf8'), /version: 1\.1\.0/);
+
+  const backupCount = readdirSync(dirname(first.backup_path)).length;
+  const second = syncBundledSkill({ client: 'hermes', env, now: new Date('2026-07-16T00:01:00Z') });
+  assert.equal(second.status, 'unchanged');
+  assert.equal(second.backup_path, null);
+  assert.equal(readdirSync(dirname(first.backup_path)).length, backupCount);
+});
+
+test('skill sync CLI executes correctly through an npm-bin style symlink', { skip: process.platform === 'win32' }, () => {
+  const root = mkdtempSync(join(tmpdir(), 'kemcp-skill-bin-'));
+  const home = join(root, 'home');
+  const bin = join(root, 'korean-engineering-mcp-sync-skill');
+  mkdirSync(home, { recursive: true });
+  symlinkSync(fileURLToPath(new URL('../scripts/sync-skill.mjs', import.meta.url)), bin);
+  const result = spawnSync(bin, ['hermes', '--dry-run', '--json'], {
+    encoding: 'utf8',
+    env: { ...process.env, HOME: home, HERMES_HOME: join(home, '.hermes') },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.status, 'would_install');
+  assert.equal(payload.source_version, '1.3.0');
+  assert.equal(payload.source_sha256.length, 64);
+
+  const allResult = spawnSync(bin, ['all', '--dry-run', '--json'], {
+    encoding: 'utf8',
+    env: { ...process.env, HOME: home, HERMES_HOME: join(home, '.hermes') },
+  });
+  assert.equal(allResult.status, 0, allResult.stderr);
+  const allPayload = JSON.parse(allResult.stdout);
+  assert.equal(allPayload.length, 3);
+  assert.deepEqual(new Set(allPayload.map((item) => item.client)), new Set(['hermes', 'claude', 'antigravity']));
 });
 
 test('HTML output stays inside the configured directory and avoids overwriting', () => {

@@ -1,6 +1,6 @@
 # Agent install instructions
 
-When a user gives this GitHub repository URL and says “설치해줘”, “install this”, or similar, follow this procedure.
+When a user gives this GitHub repository URL and says “설치해줘”, “업데이트해줘”, “install this”, “update this”, or similar, follow this procedure.
 
 Repository URL:
 
@@ -67,12 +67,14 @@ ENGINEERING_TIMEZONE=Asia/Seoul
 
 Generic JSON is documented in `docs/INSTALLATION.md`.
 
-## Install the skill/instruction
+## Install or synchronize the skill/instruction
 
-- Hermes: copy `skills/korean-engineering-grounded-answer/` to `~/.hermes/skills/korean-engineering-grounded-answer/`
-- Claude: copy to the supported skill directory, or put `SKILL.md` in user/project instructions
-- Antigravity: copy to its supported skill directory, or use project instructions
-- VS Code/Copilot/Cline/Cursor: copy `SKILL.md` into the extension/workspace instruction file when no formal skill mechanism exists
+Do not skip this step merely because the target skill directory already exists. MCP package updates do not automatically rewrite a client's copied skill.
+
+- Hermes: run `./install/install-skill.sh hermes`
+- Claude: run `./install/install-skill.sh claude`
+- Antigravity: run `./install/install-skill.sh antigravity`
+- VS Code/Copilot/Cline/Cursor: use the helper only for a missing project instruction file; existing shared instruction files require a reviewed manual merge
 
 Helper commands:
 
@@ -82,6 +84,23 @@ Helper commands:
 ./install/install-skill.sh antigravity
 ./install/install-skill.sh vscode
 ```
+
+For an existing installation update, updating the MCP runtime alone is incomplete. After fetching/installing the latest package, always run the matching skill sync command and verify its reported source/installed SHA-256 values match. The sync helper:
+
+- returns `unchanged` when the installed skill already matches;
+- backs up differing existing content before replacement;
+- refuses a symlinked target skill directory;
+- verifies both the backup and final installed hash;
+- exits non-zero on sync failure (the guided installer must not swallow this failure).
+
+Without a local clone, run:
+
+```bash
+npm exec --yes --package=github:sonmeggy/korean-engineering-mcp -- \
+  korean-engineering-mcp-sync-skill hermes
+```
+
+After Hermes skill/MCP updates, use a new session or `/reload-skills`, then `/reload-mcp` for the running gateway/client as applicable.
 
 ## Verification after install
 
@@ -98,7 +117,7 @@ Verify the client can discover at least these tools:
 Report without exposing key values:
 
 - MCP registered: yes/no
-- Skill/instruction installed: yes/no or manual-copy needed
+- Skill/instruction installed or synchronized: yes/no, installed version, and hash match; include backup path only when an update created one
 - Required keys configured: yes/no
 - Reference directory: configured + indexed document count, or optional/not configured
 - HTML output directory: configured/default
@@ -123,7 +142,7 @@ HTML opt-in verification:
 최종 답변과 동일한 내용의 HTML 엔지니어링 보고서도 생성해줘.
 ```
 
-For HTML verification, confirm the output file exists under `ENGINEERING_OUTPUT_DIR` (or the default), is non-empty, contains the report title/body/copy/print controls, and returns `answer_markdown_sha256`. Also call once with `user_confirmed_html=false` and confirm `user_confirmation_required` is returned without writing a file. Do not claim success from a self-reported path without checking the file.
+For HTML verification, confirm the output file exists under `ENGINEERING_OUTPUT_DIR` (or the default), is non-empty, contains the report title/body/copy/print controls, and returns `answer_markdown_sha256`. Include both inline `$Q = A v$` and display `$$h_f = f \\frac{L}{D} \\frac{v^2}{2g}$$` formulas and confirm the HTML contains MathML (`<math>`) without remote MathJax/KaTeX scripts. Also call once with `user_confirmed_html=false` and confirm `user_confirmation_required` is returned without writing a file. Do not claim success from a self-reported path without checking the file.
 
 ## Required answer behavior
 
@@ -137,6 +156,7 @@ The installed skill must enforce:
 - HTML remains optional: answer first, ask once, and never render before explicit request/consent
 - `user_confirmed_html=true` only after that request/consent
 - exact same Markdown body for chat and `render_engineering_answer_html` after confirmation
+- TeX `$...$` / `$$...$$` formulas rendered as offline MathML in HTML without remote scripts
 - local reference documents treated as unverified supporting data until issuer/edition/revision/original are checked
 
 ## Safety boundaries
