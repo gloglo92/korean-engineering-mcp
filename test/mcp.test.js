@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
@@ -10,7 +11,7 @@ async function withClient(fn) {
   const outputDir = mkdtempSync(join(tmpdir(), 'kemcp-mcp-'));
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [new URL('../index.js', import.meta.url).pathname],
+    args: [fileURLToPath(new URL('../index.js', import.meta.url))],
     env: {
       ...process.env,
       KOREAN_ENGINEERING_MCP_SKIP_AUTOSTART: '0',

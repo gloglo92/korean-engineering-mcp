@@ -710,8 +710,8 @@ server.tool(
     const payload = {
       ...result,
       domain: detected.map((item) => ({ key: item.key, label: item.label })),
-      content_identity: "answer_markdown_sha256는 입력 Markdown 전체의 SHA-256이며 HTML meta에도 동일하게 기록됩니다.",
-      usage: "사용자 확인을 받은 뒤 생성된 문서입니다. 최종 채팅 답변에는 입력한 answer_markdown을 그대로 사용하고, output_path의 HTML 파일을 함께 제공하세요.",
+      content_identity: "answer_markdown_sha256는 대화형 HTML 생성 제안문을 제외한 실제 렌더링 엔지니어링 Markdown 본문의 SHA-256이며 HTML meta에도 동일하게 기록됩니다.",
+      usage: "사용자 확인을 받은 뒤 생성된 문서입니다. 최종 채팅 답변에는 대화형 생성 제안문을 제외한 엔지니어링 본문을 사용하고, output_path의 HTML 파일을 함께 제공하세요.",
     };
     if (!include_html) delete payload.html;
     return {
@@ -1275,7 +1275,7 @@ server.tool(
         confirmation_prompt: "동일 내용의 HTML 보고서도 생성할까요?",
         tool: "render_engineering_answer_html",
         confirmation_argument: { user_confirmed_html: true },
-        rule: "HTML을 자동 생성하지 마세요. 사용자가 현재 요청에서 HTML을 명시적으로 요구했거나 최종 답변 후 생성 제안에 동의한 경우에만 user_confirmed_html=true로 호출하고, 최종 답변과 정확히 동일한 Markdown을 answer_markdown에 넣어 output_path를 제공하세요.",
+        rule: "HTML을 자동 생성하지 마세요. 사용자가 현재 요청에서 HTML을 명시적으로 요구했거나 최종 답변 후 생성 제안에 동의한 경우에만 user_confirmed_html=true로 호출하세요. confirmation_prompt는 대화 제어문이므로 기술 답변과 분리하고, answer_markdown에는 해당 질문을 제외한 최종 엔지니어링 Markdown 본문만 정확히 넣어 output_path를 제공하세요.",
         template: "오프라인 단일 HTML · A4 인쇄 · Word 서식 복사 · TeX 수식 MathML 렌더링 · 원문 HTML 비활성화",
       },
     };

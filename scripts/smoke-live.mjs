@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { fileURLToPath } from 'node:url';
 
 const samples = [
   { domain: 'road', question: '도로 배수시설 설치기준과 관련 법령 검토' },
@@ -38,7 +39,7 @@ if (!process.env.KCSC_API_KEY || !process.env.LAW_API_KEY) {
 
 const transport = new StdioClientTransport({
   command: process.execPath,
-  args: [new URL('../index.js', import.meta.url).pathname],
+  args: [fileURLToPath(new URL('../index.js', import.meta.url))],
   env: { ...process.env, KOREAN_ENGINEERING_MCP_SKIP_AUTOSTART: '0' },
   stderr: 'pipe',
 });

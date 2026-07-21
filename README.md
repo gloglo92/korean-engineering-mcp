@@ -12,7 +12,7 @@ Claude, Hermes, OpenClaw, Antigravity, VS Code/Copilot/Cline/Cursor 계열 등 M
 - **분야별 coverage matrix**: `configured`, `indexed`, `partial`, `unavailable` 상태로 KCSC·법령·로컬 참고자료 가용성을 구분합니다.
 - **전 분야 로컬 자료**: `REFERENCE_DIR` 아래의 `.md`, `.markdown`, `.txt`를 제한된 깊이·파일 수·크기 안에서 분야/섹션 단위로 검색합니다.
 - **선택적 동일 내용 HTML**: HTML은 기본 자동생성하지 않습니다. 사용자가 직접 요청하거나 채팅 답변 후 생성 제안에 동의한 경우에만 최종 Markdown을 그대로 입력해 오프라인 단일 HTML, A4 인쇄/PDF, Word 서식 복사가 가능한 보고서를 생성합니다.
-- **안전한 문서 생성**: 사용자 Markdown의 raw HTML을 실행하지 않고, 파일명과 출력 경로를 제한하며, 입력 Markdown SHA-256을 HTML 메타에 기록합니다.
+- **안전한 문서 생성**: 사용자 Markdown의 raw HTML을 실행하지 않고, 파일명과 출력 경로를 제한하며, 실제 렌더링된 엔지니어링 Markdown 본문의 SHA-256을 HTML 메타에 기록합니다.
 - **오프라인 수식 렌더링**: `$...$`와 `$$...$$` TeX 수식을 서버에서 안전한 MathML로 변환해 외부 스크립트·폰트 없이 브라우저·인쇄/PDF에서 표시합니다.
 - **관리 스킬 동기화**: MCP 코드 업데이트와 별개로 남아 있던 기존 클라이언트 스킬을 전용 명령으로 백업·교체·SHA-256 검증하여 최신 HTML opt-in 정책까지 함께 반영합니다.
 
@@ -227,10 +227,13 @@ HTML은 기본 산출물이 아닙니다. 먼저 채팅 답변을 제공한 뒤 
 
 사용자가 동의하면 에이전트는 다음 순서로 생성합니다.
 
-1. 이미 확정한 Markdown 답변을 그대로 유지합니다.
-2. `render_engineering_answer_html.user_confirmed_html=true`를 명시합니다.
-3. 그 **동일한 Markdown 전체**를 `answer_markdown`에 넣습니다.
-4. 생성된 HTML 파일을 제공하고 `answer_markdown_sha256`으로 입력 본문 동일성을 확인합니다.
+1. 이미 확정한 엔지니어링 Markdown 답변을 그대로 유지합니다.
+2. 위 확인 질문은 대화 제어문으로만 사용하고 답변 본문에 붙이지 않습니다.
+3. `render_engineering_answer_html.user_confirmed_html=true`를 명시합니다.
+4. 확인 질문을 제외한 **동일한 엔지니어링 Markdown 전체**를 `answer_markdown`에 넣습니다.
+5. 생성된 HTML 파일을 제공하고 `answer_markdown_sha256`으로 실제 렌더링된 엔지니어링 본문 동일성을 확인합니다.
+
+렌더러도 방어적으로 문서 끝에 정확히 남아 있는 위 확인 질문을 HTML 본문에서 제거합니다. 기술 본문 중간의 동일 문구는 임의로 삭제하지 않으며, 제안문 제거 후 본문이 비면 생성을 거부합니다. 이 경우 SHA-256은 제안문이 제거된 실제 보고서 Markdown 본문을 기준으로 계산됩니다.
 
 사용자가 처음부터 다음처럼 HTML을 명시적으로 요청했다면 그 요청 자체가 확인이므로 다시 묻지 않습니다.
 

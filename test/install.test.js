@@ -55,8 +55,9 @@ test('guided Hermes installer synchronizes an existing skill and does not reveal
   assert.match(result.stdout, /hash match: yes/);
   assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, new RegExp(`${kcscKey}|${lawKey}`));
   const installed = readFileSync(join(skill, 'SKILL.md'), 'utf8');
-  assert.match(installed, /version: 1\.3\.0/);
+  assert.match(installed, /version: 1\.3\.1/);
   assert.match(installed, /동일 내용의 HTML 보고서도 생성할까요/);
+  assert.match(installed, /Never append that prompt to the engineering answer body/);
   assert.match(installed, /offline MathML/);
   assert.equal(statSync(envPath).mode & 0o777, 0o600);
 

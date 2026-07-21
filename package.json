@@ -1,6 +1,6 @@
 {
   "name": "korean-engineering-mcp",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "한국 엔지니어링 전 분야의 건설기준·법령 근거 검색과 사용자 확인 후 선택적 HTML 보고서 생성을 지원하는 MCP 서버",
   "type": "module",
   "bin": {

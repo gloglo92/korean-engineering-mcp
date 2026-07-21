@@ -192,13 +192,15 @@ hermes mcp test korean-engineering-mcp
 동일 내용의 HTML 보고서도 생성할까요?
 ```
 
+이 질문은 대화 제어문으로만 보내고 엔지니어링 답변 본문에는 포함하지 않습니다. 사용자가 동의한 뒤 `answer_markdown`에는 위 질문을 제외한 기술 답변만 전달해야 하며, 렌더러도 문서 끝에 정확히 남은 이 질문을 방어적으로 제거합니다.
+
 사용자가 동의하거나 처음부터 HTML을 명시적으로 요청한 경우에만 다음 인자로 렌더러를 호출합니다.
 
 ```json
 {
   "user_confirmed_html": true,
   "title": "검토 제목",
-  "answer_markdown": "최종 채팅 답변과 동일한 Markdown"
+  "answer_markdown": "확인 질문을 제외한 최종 엔지니어링 Markdown 본문"
 }
 ```
 
@@ -208,7 +210,8 @@ hermes mcp test korean-engineering-mcp
 - `output_path`가 설정한 `ENGINEERING_OUTPUT_DIR` 아래인지
 - HTML에 제목, 본문, `보고서 복사`, `인쇄 / PDF`가 있는지
 - `$Q = A v$`와 `$$h_f = f \\frac{L}{D} \\frac{v^2}{2g}$$`가 `<math>` MathML로 변환되고 원격 MathJax/KaTeX script가 없는지
-- `answer_markdown_sha256`과 HTML meta의 hash가 동일한지
+- `answer_markdown_sha256`이 제안문을 제외한 실제 렌더링 Markdown 본문의 해시이고 HTML meta의 hash와 동일한지
+- 입력이 제안문만으로 구성되면 빈 보고서 대신 오류를 반환하는지
 - 같은 파일명 재생성 시 기존 파일을 덮어쓰지 않는지
 
 ## Reference directory policy

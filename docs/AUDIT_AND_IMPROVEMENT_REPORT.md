@@ -54,7 +54,7 @@
 - 사용자가 현재 요청에서 HTML을 명시적으로 요구했거나 답변 후 생성 제안에 동의한 경우에만 `user_confirmed_html=true`로 `render_engineering_answer_html`을 호출한다.
 - `user_confirmed_html=false`이면 `user_confirmation_required` 오류를 반환하고 파일을 쓰지 않는다.
 - `render_engineering_answer_html` 도구가 확인된 최종 답변 Markdown을 전용 출력 디렉터리에 단일 HTML로 저장한다.
-- 결과에는 `answer_markdown_sha256`와 `html_sha256`가 포함되고, 입력 Markdown 해시는 HTML 메타에도 기록된다.
+- 결과에는 `answer_markdown_sha256`와 `html_sha256`가 포함되고, 실제 렌더링된 엔지니어링 Markdown 본문 해시는 HTML 메타에도 기록된다.
 - 디자인은 엔지니어링 검토보고서용 네이비·청록 팔레트, 제목·메타정보·표·목록·인용문·코드·A4 인쇄·Word 복사에 최적화했다.
 - 브라우저의 `보고서 복사` 버튼은 지원 환경에서 HTML과 plain text를 함께 복사한다.
 

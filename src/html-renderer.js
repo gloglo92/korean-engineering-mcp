@@ -11,6 +11,7 @@ const DEFAULT_OUTPUT_DIR = join(homedir(), ".korean-engineering-mcp", "outputs")
 const MAX_MARKDOWN_CHARS = 120_000;
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const UNSAFE_CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
+const HTML_REPORT_OPT_IN_PROMPT = "동일 내용의 HTML 보고서도 생성할까요?";
 
 const md = installMathRendering(new MarkdownIt({
   html: false,
@@ -100,6 +101,13 @@ function replaceTemplate(template, values) {
   return out;
 }
 
+function omitTrailingHtmlReportOptInPrompt(answerMarkdown) {
+  const lines = answerMarkdown.split("\n");
+  while (lines.length && !lines.at(-1).trim()) lines.pop();
+  if (lines.at(-1)?.trim() === HTML_REPORT_OPT_IN_PROMPT) lines.pop();
+  return lines.join("\n").trim();
+}
+
 export function renderEngineeringAnswerHtml(options = {}) {
   const title = cleanMetadata(options.title, "엔지니어링 검토 답변", 160);
   const answerMarkdown = assertSafeText(
@@ -116,8 +124,12 @@ export function renderEngineeringAnswerHtml(options = {}) {
   const documentId = cleanMetadata(options.documentId || options.document_id, "-", 80);
   const preparedAt = formatKoreanTimestamp(options.preparedAt || options.prepared_at);
   const generatorLabel = cleanMetadata(options.generatorLabel || options.generator_label, "korean-engineering-mcp");
-  const bodyHtml = md.render(answerMarkdown);
-  const answerSha256 = createHash("sha256").update(answerMarkdown, "utf8").digest("hex");
+  const reportMarkdown = omitTrailingHtmlReportOptInPrompt(answerMarkdown);
+  if (!reportMarkdown) {
+    throw new Error("answer_markdown에는 HTML 생성 제안문 외의 엔지니어링 본문이 포함되어야 합니다.");
+  }
+  const bodyHtml = md.render(reportMarkdown);
+  const answerSha256 = createHash("sha256").update(reportMarkdown, "utf8").digest("hex");
   const template = readFileSync(options.templatePath || DEFAULT_TEMPLATE, "utf8");
   const metaItems = [
     metaItem("작성일", preparedAt),

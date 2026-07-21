@@ -1,7 +1,7 @@
 ---
 name: korean-engineering-grounded-answer
 description: "한국 엔지니어링 전 분야의 법령·건설기준·소관기관 기준 근거 기반 답변과 사용자 확인 후 선택적으로 동일 내용 HTML 보고서를 생성하는 절차. korean-engineering-mcp와 함께 사용해 할루시네이션을 줄이고 분야 분류·정확한 인용·종합 판단·문서 산출을 강제한다."
-version: 1.3.0
+version: 1.3.1
 author: sonmeggy / Lumi
 license: MIT
 platforms: [linux, macos, windows]
@@ -25,8 +25,8 @@ Do **not** answer from general knowledge alone. Before giving a substantive answ
 5. If MCP is unavailable, use official web search or verified local reference documents before answering.
 6. If direct evidence is still unavailable, say `직접 근거 미확인` or `근거 불충분`; do not make a definitive claim.
 7. HTML is **optional**. Do not call `render_engineering_answer_html` automatically after an engineering answer.
-8. If the user did not explicitly request HTML in the current turn, first deliver the complete Markdown answer, ask `동일 내용의 HTML 보고서도 생성할까요?`, and wait for the reply.
-9. An explicit HTML request in the current turn or an affirmative reply is confirmation. Only then call `render_engineering_answer_html` with `user_confirmed_html=true` and the exact final Markdown body; a direct request does not require a second confirmation.
+8. If the user did not explicitly request HTML in the current turn, first deliver the complete Markdown answer, then ask `동일 내용의 HTML 보고서도 생성할까요?` as a separate conversational prompt and wait for the reply. Never append that prompt to the engineering answer body.
+9. An explicit HTML request in the current turn or an affirmative reply is confirmation. Only then call `render_engineering_answer_html` with `user_confirmed_html=true` and the exact final engineering Markdown body, excluding the conversational HTML opt-in prompt; a direct request does not require a second confirmation.
 
 ## Source hierarchy
 
@@ -72,14 +72,14 @@ Apply this priority order when sources conflict:
 
 HTML generation is opt-in, not a default side effect.
 
-1. Complete evidence gathering and deliver one final Markdown answer first.
-2. If the user did not already request HTML, ask once whether they want an identical HTML report and stop; do not call the renderer in that turn.
-3. If the user explicitly requested HTML or replies affirmatively, call `render_engineering_answer_html` with `user_confirmed_html=true` and the **exact same Markdown body** in `answer_markdown`.
+1. Complete evidence gathering and deliver one final Markdown engineering answer first.
+2. If the user did not already request HTML, ask once whether they want an identical HTML report as a separate conversational prompt and stop; do not append that question to the engineering answer and do not call the renderer in that turn.
+3. If the user explicitly requested HTML or replies affirmatively, call `render_engineering_answer_html` with `user_confirmed_html=true` and the **exact same engineering Markdown body**, excluding the opt-in question, in `answer_markdown`.
 4. If the user declines or does not answer, do not generate a file and do not ask repeatedly.
-5. Do not summarize, reorder, or rewrite the HTML version separately. The chat body and document body must be content-identical.
+5. Do not summarize, reorder, or rewrite the engineering content for HTML. The conversational opt-in question is control text, not report content, and must never appear in the generated document.
 6. Use a clear engineering title, the detected domain, project/document metadata when known, and `document_status` such as `검토용`.
-7. Return the generated `output_path` or client attachment together with the same Markdown answer.
-8. Preserve the returned `answer_markdown_sha256` when auditability matters; the template stores the same hash in a meta tag.
+7. Return the generated `output_path` or client attachment together with the same engineering Markdown answer.
+8. Preserve the returned `answer_markdown_sha256` when auditability matters; it hashes the engineering Markdown body actually rendered after any trailing opt-in prompt is removed, and the template stores the same hash in a meta tag.
 9. The bundled template is offline, A4 print/PDF ready, and provides rich HTML plus plain-text clipboard copy for Word/report drafting. Do not replace it with remote CSS, trackers, or user-supplied raw HTML.
 10. Write mathematical expressions with TeX delimiters (`$...$` inline and `$$...$$` display) when a formula is needed. The renderer converts those expressions to offline MathML; do not inject remote MathJax/KaTeX scripts or raw HTML.
 11. Keep the exact TeX source in the Markdown body so chat and HTML remain content-identical and the SHA-256 audit remains valid.

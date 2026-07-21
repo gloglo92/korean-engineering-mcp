@@ -29,6 +29,8 @@ test('provides grounded research and citation-detail tools', () => {
   assert.match(index, /근거 불충분|직접 근거 미확인/);
   assert.match(index, /confirmation_required:\s*true/);
   assert.match(index, /동일 내용의 HTML 보고서도 생성할까요/);
+  assert.match(index, /confirmation_prompt는 대화 제어문/);
+  assert.match(index, /실제 렌더링 엔지니어링 Markdown 본문/);
 });
 
 test('skill enforces evidence-first and citation-first answers', () => {
@@ -39,6 +41,8 @@ test('skill enforces evidence-first and citation-first answers', () => {
   assert.match(skill, /HTML is \*\*optional\*\*/);
   assert.match(skill, /user_confirmed_html=true/);
   assert.match(skill, /ask once.*identical HTML report/);
+  assert.match(skill, /Never append that prompt to the engineering answer body/);
+  assert.match(skill, /excluding the opt-in question/);
   assert.match(skill, /offline MathML/);
 });
 
@@ -51,6 +55,8 @@ test('README documents MCP plus skill installation', () => {
   assert.match(readme, /korean-engineering-mcp-sync-skill hermes/);
   assert.match(readme, /\/reload-skills/);
   assert.match(readme, /\/reload-mcp/);
+  assert.match(readme, /확인 질문은 대화 제어문/);
+  assert.match(readme, /HTML 본문에서 제거/);
 });
 
 test('ships a cross-domain registry for the requested engineering sectors', () => {

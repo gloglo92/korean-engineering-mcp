@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -222,6 +223,34 @@ test('HTML renderer preserves report structure while escaping untrusted raw HTML
   );
 });
 
+test('HTML renderer omits a trailing conversational HTML opt-in prompt', () => {
+  const engineeringMarkdown = '## 결론\n연소방식 검토 본문입니다.';
+  const sourceMarkdown = `${engineeringMarkdown}\n\n동일 내용의 HTML 보고서도 생성할까요?`;
+  const rendered = renderEngineeringAnswerHtml({
+    title: '하수처리시설 악취 탈취 검토',
+    answer_markdown: sourceMarkdown,
+    prepared_at: '2026-07-21 11:00 KST',
+  });
+
+  assert.match(rendered.html, /연소방식 검토 본문입니다/);
+  assert.doesNotMatch(rendered.html, /동일 내용의 HTML 보고서도 생성할까요/);
+  assert.equal(
+    rendered.answer_markdown_sha256,
+    createHash('sha256').update(engineeringMarkdown, 'utf8').digest('hex'),
+  );
+  assert.throws(
+    () => renderEngineeringAnswerHtml({ answer_markdown: '동일 내용의 HTML 보고서도 생성할까요?' }),
+    /엔지니어링 본문/,
+  );
+
+  const promptDiscussedInsideReport = renderEngineeringAnswerHtml({
+    title: '보고서 생성 절차 설명',
+    answer_markdown: '## 절차\n`동일 내용의 HTML 보고서도 생성할까요?`라는 질문은 별도로 보낸다.\n\n기술 본문 끝.',
+    prepared_at: '2026-07-21 11:00 KST',
+  });
+  assert.match(promptDiscussedInsideReport.html, /동일 내용의 HTML 보고서도 생성할까요/);
+});
+
 test('HTML renderer converts inline and display TeX to offline MathML', () => {
   const markdown = [
     '## 수식 검토',
@@ -268,10 +297,11 @@ test('managed skill sync updates an existing install with backup and hash verifi
   const first = syncBundledSkill({ client: 'hermes', env, now: new Date('2026-07-16T00:00:00Z') });
   assert.equal(first.status, 'updated');
   assert.equal(first.previous_version, '1.1.0');
-  assert.equal(first.installed_version, '1.3.0');
+  assert.equal(first.installed_version, '1.3.1');
   assert.equal(first.source_sha256, first.installed_sha256);
   assert.equal(hashSkillDirectory(destination), first.source_sha256);
   assert.match(readFileSync(join(destination, 'SKILL.md'), 'utf8'), /동일 내용의 HTML 보고서도 생성할까요/);
+  assert.match(readFileSync(join(destination, 'SKILL.md'), 'utf8'), /excluding the conversational HTML opt-in prompt/);
   assert.match(readFileSync(join(destination, 'SKILL.md'), 'utf8'), /offline MathML/);
   assert.ok(first.backup_path);
   assert.equal(readFileSync(join(first.backup_path, 'local-note.md'), 'utf8'), 'user customization');
@@ -297,7 +327,7 @@ test('skill sync CLI executes correctly through an npm-bin style symlink', { ski
   assert.equal(result.status, 0, result.stderr);
   const payload = JSON.parse(result.stdout);
   assert.equal(payload.status, 'would_install');
-  assert.equal(payload.source_version, '1.3.0');
+  assert.equal(payload.source_version, '1.3.1');
   assert.equal(payload.source_sha256.length, 64);
 
   const allResult = spawnSync(bin, ['all', '--dry-run', '--json'], {
