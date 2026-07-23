@@ -68,8 +68,13 @@ Claude, Hermes, OpenClaw, Antigravity, VS Code/Copilot/Cline/Cursor 계열 등 M
 ### 법제처
 
 - `search_laws` / `get_law_detail`
+- `search_ordinances` / `get_ordinance_detail` — 지자체 자치법규(조례·규칙)
 - `search_admin_rules` / `get_admin_rule_detail`
 - `search_interpretations`
+
+### 인용 검증
+
+- `verify_citations` — 문서에 적힌 법령·자치법규·행정규칙의 명칭·시행일·지자체명·소관부처명이 실제 현행과 일치하는지 일괄 대조. 지자체명 오기(다른 지자체 조례를 잘못 인용), 조직개편에 따른 소관부처 명칭 변경 등을 자동으로 표시
 
 ### 로컬 참고자료
 

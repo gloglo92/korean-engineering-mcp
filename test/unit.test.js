@@ -36,6 +36,13 @@ const {
 } = await import('../src/references.js');
 
 const {
+  normalizeDateDigits,
+  formatDateDigits,
+  nameSimilarityScore,
+  evaluateCitation,
+} = await import('../src/citations.js');
+
+const {
   hashSkillDirectory,
   syncBundledSkill,
 } = await import('../scripts/sync-skill.mjs');
@@ -357,4 +364,80 @@ test('HTML output stays inside the configured directory and avoids overwriting',
   assert.equal(sanitizeHtmlFilename('../도로/검토서.html'), '도로-검토서.html');
   assert.match(readFileSync(first.output_path, 'utf8'), /도로 배수 검토/);
   assert.equal(first.answer_markdown_sha256.length, 64);
+});
+
+test('normalizeDateDigits parses common Korean date notations to YYYYMMDD', () => {
+  assert.equal(normalizeDateDigits('2024.12.23'), '20241223');
+  assert.equal(normalizeDateDigits('2024-12-23'), '20241223');
+  assert.equal(normalizeDateDigits('20241223'), '20241223');
+  assert.equal(normalizeDateDigits('2024.2.3'), '20240203');
+  assert.equal(normalizeDateDigits('2024년 2월 3일'), '20240203');
+  assert.equal(normalizeDateDigits(''), '');
+  assert.equal(normalizeDateDigits('모름'), '');
+});
+
+test('formatDateDigits renders YYYYMMDD as dotted date and passes through invalid input', () => {
+  assert.equal(formatDateDigits('20241223'), '2024.12.23');
+  assert.equal(formatDateDigits('bad'), 'bad');
+});
+
+test('nameSimilarityScore ranks exact, substring, and token-overlap matches', () => {
+  assert.equal(nameSimilarityScore('예산군 하수도 사용 조례', '예산군 하수도 사용 조례'), 100);
+  assert.equal(nameSimilarityScore('하수도 사용 조례', '예산군 하수도 사용 조례'), 70);
+  assert.equal(nameSimilarityScore('전혀 다른 이름', '예산군 하수도 사용 조례'), 0);
+});
+
+test('evaluateCitation flags a region mismatch when the cited ordinance belongs to a different municipality', () => {
+  // 실제로 발견된 사례를 재현: 예산군 사업 문서에 안동시 조례가 잘못 인용된 경우
+  const citation = {
+    kind: 'ordinance',
+    name: '안동시 하수도 사용 조례 시행규칙',
+    region: '예산군',
+    claimed_date: '2024-12-23',
+  };
+  const candidates = [
+    { title: '안동시 하수도 사용 조례 시행규칙', region: '경상북도 안동시', effective_date: '20200918', url: 'https://example.test/andong' },
+  ];
+  const result = evaluateCitation(citation, candidates);
+  assert.equal(result.status, 'mismatch');
+  assert.ok(result.reasons.some((r) => r.includes('지자체 불일치')));
+  assert.ok(result.reasons.some((r) => r.includes('시행일자 불일치')));
+});
+
+test('evaluateCitation reports current when name, date, and issuer all match', () => {
+  const citation = { kind: 'law', name: '하수도법', claimed_date: '2025.10.1', claimed_issuer: '기후에너지환경부' };
+  const candidates = [
+    { title: '하수도법', ministry: '기후에너지환경부', effective_date: '20251001', url: 'https://example.test/law' },
+  ];
+  const result = evaluateCitation(citation, candidates);
+  assert.equal(result.status, 'current');
+  assert.deepEqual(result.reasons, []);
+  assert.equal(result.matched.title, '하수도법');
+});
+
+test('evaluateCitation flags an issuer mismatch, e.g. after a ministry reorganization', () => {
+  const citation = { kind: 'admin_rule', name: '하수도설계기준', claimed_issuer: '환경부' };
+  const candidates = [
+    { title: '하수도설계기준', agency: '기후에너지환경부', effective_date: '20251001', url: 'https://example.test/admrul' },
+  ];
+  const result = evaluateCitation(citation, candidates);
+  assert.equal(result.status, 'mismatch');
+  assert.ok(result.reasons.some((r) => r.includes('소관부처 불일치')));
+});
+
+test('evaluateCitation returns not_found for an empty candidate list', () => {
+  const result = evaluateCitation({ kind: 'law', name: '존재하지않는법' }, []);
+  assert.equal(result.status, 'not_found');
+  assert.equal(result.matched, null);
+});
+
+test('evaluateCitation returns ambiguous when top candidates tie in score', () => {
+  const citation = { kind: 'ordinance', name: '하수도 사용 조례', region: undefined };
+  const candidates = [
+    { title: '가나시 하수도 사용 조례', region: '가나시', effective_date: '20240101' },
+    { title: '다라시 하수도 사용 조례', region: '다라시', effective_date: '20240101' },
+  ];
+  const result = evaluateCitation(citation, candidates);
+  assert.equal(result.status, 'ambiguous');
+  assert.equal(result.alternatives.length, 2);
 });

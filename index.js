@@ -17,6 +17,7 @@ import {
   discoverReferenceDocuments,
   searchReferenceDocuments,
 } from "./src/references.js";
+import { evaluateCitation } from "./src/citations.js";
 import {
   renderEngineeringAnswerHtml,
   sanitizeHtmlFilename,
@@ -375,6 +376,29 @@ function lawEvidenceFromSearch(data) {
   });
 }
 
+function ordinanceEvidenceFromSearch(data) {
+  const search = data?.OrdinSearch;
+  return extractList(search, "law").map((item) => {
+    const mst = item["자치법규일련번호"] || "";
+    return {
+      source_type: "ordinance_search_result",
+      source_kind: "ordinance",
+      result_stage: "candidate",
+      authority_tier: 1.5,
+      title: item["자치법규명"] || "",
+      ordinance_type: item["자치법규종류"] || "",
+      mst,
+      ordinance_id: item["자치법규ID"] || "",
+      effective_date: item["시행일자"] || "",
+      promulgation_date: item["공포일자"] || "",
+      revision_type: item["제개정구분명"] || "",
+      region: item["지자체기관명"] || "",
+      url: ordinanceDetailUrl(mst),
+      note: "조문 단위 판단 전 자치법규 본문/조문 상세 확인 필요",
+    };
+  });
+}
+
 function adminEvidenceFromSearch(data) {
   const search = data?.AdmRulSearch || data?.AdminRulSearch || data?.LawSearch;
   return extractList(search, "admrul").map((item) => {
@@ -484,6 +508,10 @@ function adminRuleDetailUrl(id) {
   return id ? `${LAW_BASE}/lawService.do?target=admrul&ID=${encodeURIComponent(id)}&type=HTML` : LAW_BASE;
 }
 
+function ordinanceDetailUrl(mst) {
+  return mst ? `${LAW_BASE}/lawService.do?target=ordin&MST=${encodeURIComponent(mst)}&type=HTML` : LAW_BASE;
+}
+
 export function normalizeLawArticles(lawDetail, keyword = "", maxArticles = 8) {
   const law = lawDetail?.["법령"] || lawDetail;
   const info = law?.["기본정보"] || {};
@@ -541,6 +569,29 @@ export function normalizeAdminRuleArticles(detail, keyword = "", maxArticles = 8
     };
   });
   return [...articleItems, ...annexItems]
+    .filter((a) => a.quote && (!keywords.length || a.score > 0))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, maxArticles)
+    .map(({ score, ...a }) => a);
+}
+
+export function normalizeOrdinanceArticles(detail, keyword = "", maxArticles = 8) {
+  const root = detail?.LawService || detail;
+  const basic = root?.자치법규기본정보 || {};
+  const articles = asArray(root?.조문?.조 || []);
+  const keywords = keywordsFrom(keyword);
+  return articles
+    .map((article) => {
+      const articleNumber = Array.isArray(article["조문번호"]) ? article["조문번호"][0] : article["조문번호"];
+      const text = article["조내용"] || "";
+      return {
+        article_number: articleNumber || "",
+        article_title: article["조제목"] || "",
+        effective_date: basic["시행일자"] || "",
+        quote: compactText(text, 700),
+        score: keywords.length ? scoreText(`${articleNumber || ""} ${article["조제목"] || ""} ${text}`, keywords) : 1,
+      };
+    })
     .filter((a) => a.quote && (!keywords.length || a.score > 0))
     .sort((a, b) => b.score - a.score)
     .slice(0, maxArticles)
@@ -988,6 +1039,132 @@ server.tool(
       citation_note: "최종 답변에는 행정규칙명, 조문/별표 제목, 시행일 또는 발령일, 핵심 인용문을 함께 표시하세요.",
     };
     return { content: [{ type: "text", text: JSON.stringify(payload, null, 2) }] };
+  }
+);
+
+
+server.tool(
+  "search_ordinances",
+  "법제처 자치법규 검색 (지자체 조례·규칙 등). 지자체명을 검색어에 포함하면 결과가 더 정확합니다 (예: '예산군 하수도 사용 조례').",
+  {
+    query:   z.string().describe("검색 키워드 (예: 예산군 하수도 사용 조례, 안동시 상수도 급수 조례)"),
+    display: z.number().int().min(1).max(100).default(10).describe("결과 수 (기본 10)"),
+  },
+  async ({ query, display }) => {
+    const data = await fetchLaw("lawSearch.do", { target: "ordin", query, display });
+    const search = data?.OrdinSearch;
+    const items = extractList(search, "law");
+
+    if (!items.length) return { content: [{ type: "text", text: `'${query}' 자치법규 검색 결과 없음` }] };
+
+    const total = search?.["@total_count"] || search?.totalCnt || items.length;
+    const lines = [`자치법규 검색결과: '${query}' (총 ${total}건)\n`];
+    for (const item of items) {
+      const mst = item["자치법규일련번호"] || "";
+      lines.push(`■ ${item["자치법규명"] || ""}`);
+      lines.push(`  종류: ${item["자치법규종류"] || ""} | 시행: ${item["시행일자"] || ""} | 지자체: ${item["지자체기관명"] || ""}`);
+      lines.push(`  자치법규ID: ${item["자치법규ID"] || ""} | MST: ${mst}`);
+      lines.push(`  원문: ${ordinanceDetailUrl(mst)}`);
+      lines.push("");
+    }
+    return { content: [{ type: "text", text: lines.join("\n") }] };
+  }
+);
+
+server.tool(
+  "get_ordinance_detail",
+  "법제처 자치법규 상세 조회. search_ordinances 결과의 MST(자치법규일련번호)를 넣으면 조문 단위 근거와 핵심 인용문을 반환합니다.",
+  {
+    mst: z.string().describe("자치법규일련번호(MST). search_ordinances 결과의 MST 값을 사용"),
+    keyword: z.string().optional().describe("조문 필터링 키워드. 예: 사용료, 배수설비, 급수공사"),
+    max_articles: z.number().int().min(1).max(20).default(8).describe("토큰 절감을 위한 최대 조문 수"),
+  },
+  async ({ mst, keyword, max_articles }) => {
+    const detail = await fetchLaw("lawService.do", { target: "ordin", MST: mst });
+    const root = detail?.LawService || {};
+    const info = root?.자치법규기본정보 || {};
+    const payload = {
+      source_type: "ordinance_detail",
+      title: info["자치법규명"] || "",
+      ordinance_type: info["자치법규종류"] || "",
+      mst,
+      ordinance_id: info["자치법규ID"] || "",
+      promulgation_number: info["공포번호"] || "",
+      promulgation_date: info["공포일자"] || "",
+      effective_date: info["시행일자"] || "",
+      region: info["지자체기관명"] || "",
+      url: ordinanceDetailUrl(mst),
+      articles: normalizeOrdinanceArticles(detail, keyword || "", Math.max(1, Math.min(Number(max_articles) || 8, 20))),
+      citation_note: "최종 답변에는 자치법규명, 지자체명, 조문번호/제목, 시행일, 핵심 인용문을 함께 표시하세요.",
+    };
+    return { content: [{ type: "text", text: JSON.stringify(payload, null, 2) }] };
+  }
+);
+
+server.tool(
+  "verify_citations",
+  "문서에 인용된 법령·자치법규·행정규칙(고시·예규·훈령)이 실제 현행 내용과 일치하는지 일괄 대조합니다. 문서에 적힌 명칭·시행일자·지자체명·소관부처명을 법제처 검색 결과와 비교해 지자체명 오기, 날짜 오기, 부처 명칭 변경(조직개편) 등을 자동으로 표시합니다. 판정은 명칭/날짜/지자체/부처명 등 메타데이터 수준이며, 조문 내용 자체의 기술적 적합성 판단은 하지 않습니다.",
+  {
+    citations: z.array(z.object({
+      kind: z.enum(["law", "ordinance", "admin_rule"]).describe("law=법령, ordinance=자치법규(조례/규칙), admin_rule=행정규칙(고시/예규/훈령)"),
+      name: z.string().min(1).max(200).describe("문서에 적힌 인용 명칭 (예: 예산군 하수도 사용 조례 시행규칙)"),
+      region: z.string().max(100).optional().describe("ordinance인 경우 문서에 명시된(또는 기대되는) 지자체명 (예: 예산군)"),
+      claimed_date: z.string().max(50).optional().describe("문서에 적힌 제·개정일 또는 시행일 (형식 자유: 2024-12-23, 2024.12.23 등)"),
+      claimed_issuer: z.string().max(100).optional().describe("문서에 적힌 소관부처/발령기관명 (예: 환경부)"),
+    })).min(1).max(30).describe("검증할 인용 목록"),
+  },
+  async ({ citations }) => {
+    const mapCandidates = (target, data) => {
+      if (target === "ordin") return ordinanceEvidenceFromSearch(data);
+      if (target === "admrul") return adminEvidenceFromSearch(data);
+      return lawEvidenceFromSearch(data);
+    };
+
+    const verifyOne = async (citation) => {
+      const target = citation.kind === "ordinance" ? "ordin" : citation.kind === "admin_rule" ? "admrul" : "law";
+      // 인용명을 그대로 먼저 검색한다. 문서에 지자체명이 틀리게 적혀 있어도(예: 다른
+      // 지자체의 조례명) 그 명칭으로 실재하는 항목을 찾아야 evaluateCitation이 지자체
+      // 불일치를 판정할 수 있다. region을 검색어에 먼저 합쳐버리면 존재하지 않는
+      // 조합이 되어 결과가 0건이 되고 "불일치" 대신 "not_found"로만 보이게 된다.
+      let query = citation.name;
+      try {
+        let data = await fetchLaw("lawSearch.do", { target, query, display: 10 });
+        let candidates = mapCandidates(target, data);
+        if (!candidates.length && citation.kind === "ordinance" && citation.region && !citation.name.includes(citation.region)) {
+          query = `${citation.region} ${citation.name}`;
+          data = await fetchLaw("lawSearch.do", { target, query, display: 10 });
+          candidates = mapCandidates(target, data);
+        }
+        const evaluation = evaluateCitation(citation, candidates);
+        return { citation, search_query: query, ...evaluation };
+      } catch (error) {
+        return {
+          citation,
+          search_query: query,
+          status: "lookup_error",
+          reasons: [error.message],
+          matched: null,
+          alternatives: [],
+        };
+      }
+    };
+
+    const results = await Promise.all(citations.map(verifyOne));
+    const summary = results.reduce((acc, r) => {
+      acc[r.status] = (acc[r.status] || 0) + 1;
+      return acc;
+    }, {});
+    const payload = {
+      schema_version: "1.0",
+      total: results.length,
+      summary,
+      results,
+      usage_note: "status가 mismatch/ambiguous/not_found/lookup_error인 항목은 matched 또는 alternatives의 url로 원문을 직접 확인한 뒤 문서를 수정하세요.",
+    };
+    return {
+      content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],
+      structuredContent: payload,
+    };
   }
 );
 
