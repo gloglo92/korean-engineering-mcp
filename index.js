@@ -108,10 +108,10 @@ for (const [name, filePath] of Object.entries(REFERENCE_FILES)) {
   }
 }
 
-// REFERENCE_DIR이 명시된 경우 분야와 파일명이 고정되지 않은 Markdown/TXT 참고자료도
+// REFERENCE_DIR이 명시된 경우 분야와 파일명이 고정되지 않은 Markdown/TXT/PDF 참고자료도
 // 최대 파일 수·크기·탐색 깊이 제한 안에서 색인한다.
 const referenceLibrary = process.env.REFERENCE_DIR
-  ? discoverReferenceDocuments(REFERENCE_DIR, {
+  ? await discoverReferenceDocuments(REFERENCE_DIR, {
       maxFiles: Number(process.env.REFERENCE_MAX_FILES) || 50,
       maxBytes: Number(process.env.REFERENCE_MAX_FILE_BYTES) || 5 * 1024 * 1024,
       maxDepth: Number(process.env.REFERENCE_MAX_DEPTH) || 3,
@@ -686,7 +686,7 @@ server.tool(
 
 server.tool(
   "search_reference_documents",
-  "REFERENCE_DIR에 등록한 전 분야 Markdown/TXT 참고자료를 분야·섹션 단위로 검색합니다. 로컬 자료는 보조 근거이며 발행기관·판·개정일을 확인해야 합니다.",
+  "REFERENCE_DIR에 등록한 전 분야 Markdown/TXT/PDF 참고자료를 분야·섹션 단위로 검색합니다. 표준품셈처럼 연도별로 개정되는 PDF도 등록해두면 특정 항목이 현재판에 있는지 키워드로 확인할 수 있습니다. 로컬 자료는 보조 근거이며 발행기관·판·개정일을 확인해야 합니다.",
   {
     query: z.string().min(2).max(2000).describe("참고자료 검색어"),
     domain: z.string().default("auto").describe("auto 또는 분야 key/한글명"),

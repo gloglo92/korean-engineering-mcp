@@ -1,6 +1,6 @@
 {
   "name": "korean-engineering-mcp",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "한국 엔지니어링 전 분야의 건설기준·법령 근거 검색과 사용자 확인 후 선택적 HTML 보고서 생성을 지원하는 MCP 서버",
   "type": "module",
   "bin": {
@@ -63,6 +63,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "katex": "^0.17.0",
     "markdown-it": "^14.3.0",
+    "pdf-parse": "^2.4.5",
     "zod": "^3.22.0"
   }
 }
