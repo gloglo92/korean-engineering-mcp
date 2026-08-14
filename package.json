@@ -1,6 +1,6 @@
 {
   "name": "korean-engineering-mcp",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "description": "한국 엔지니어링 전 분야의 건설기준·법령 근거 검색과 사용자 확인 후 선택적 HTML 보고서 생성을 지원하는 MCP 서버",
   "type": "module",
   "bin": {
@@ -21,7 +21,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "check": "node --check index.js && node --check src/domains.js && node --check src/references.js && node --check src/math-renderer.js && node --check src/html-renderer.js && node --check scripts/sync-skill.mjs",
+    "check": "node --check index.js && node --check src/domains.js && node --check src/references.js && node --check src/citations.js && node --check src/math-renderer.js && node --check src/html-renderer.js && node --check scripts/sync-skill.mjs",
     "test": "node --test",
     "sync:hermes-skill": "node scripts/sync-skill.mjs hermes",
     "smoke:live": "node scripts/smoke-live.mjs",
