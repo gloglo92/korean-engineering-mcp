@@ -78,7 +78,7 @@ Claude, Hermes, OpenClaw, Antigravity, VS Code/Copilot/Cline/Cursor 계열 등 M
 
 ### 로컬 참고자료
 
-- `search_reference_documents` — `REFERENCE_DIR`의 전 분야 Markdown/TXT 검색
+- `search_reference_documents` — `REFERENCE_DIR`의 전 분야 Markdown/TXT/PDF 검색. 표준품셈처럼 매년 개정되는 PDF를 넣어두면 특정 품목(예: "굴착 백호0.4")이 현재판에 남아있는지 키워드로 확인 가능 (연도별 비교·삭제항목 자동 탐지는 아님)
 - `search_design_manual` — 기존 상수도/하수도 해설편 파일명 방식의 하위호환 도구
 
 ### HTML 문서
@@ -120,7 +120,7 @@ cp .env.example .env
 KCSC_API_KEY=...
 LAW_API_KEY=...
 
-# 선택: 전 분야 Markdown/TXT 참고자료 루트
+# 선택: 전 분야 Markdown/TXT/PDF 참고자료 루트
 REFERENCE_DIR=/absolute/path/to/engineering/references
 
 # 선택: HTML 출력 폴더

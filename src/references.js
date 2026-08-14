@@ -1,8 +1,19 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, extname, join, relative, resolve } from "node:path";
+import { PDFParse } from "pdf-parse";
 import { classifyEngineeringDomains, getEngineeringDomain, meaningfulKeywords } from "./domains.js";
 
-const SUPPORTED_EXTENSIONS = new Set([".md", ".markdown", ".txt"]);
+const SUPPORTED_EXTENSIONS = new Set([".md", ".markdown", ".txt", ".pdf"]);
+
+async function extractPdfText(buffer) {
+  const parser = new PDFParse({ data: buffer });
+  try {
+    const result = await parser.getText();
+    return result?.text || "";
+  } finally {
+    await parser.destroy();
+  }
+}
 
 export function parseReferenceSections(content) {
   const lines = String(content || "").replace(/^\uFEFF/, "").split(/\r?\n/);
@@ -28,9 +39,30 @@ export function parseReferenceSections(content) {
   return sections.filter((section) => section.title || section.content);
 }
 
-function compact(value, max = 700) {
+// 섹션이 짧으면(마크다운 등) 그대로 잘라내지만, PDF처럼 제목 구분 없이
+// 문서 전체가 섹션 하나로 들어오는 경우 항상 맨 앞부분만 보여주면 실제
+// 매칭 위치(예: 수백 페이지 중 한 줄)를 놓치게 된다. 검색어가 등장하는
+// 위치를 중심으로 잘라낸다.
+function compact(value, keywords = [], max = 700) {
   const normalized = String(value || "").replace(/\s+/g, " ").trim();
-  return normalized.length > max ? `${normalized.slice(0, max)}…` : normalized;
+  if (normalized.length <= max) return normalized;
+
+  let matchIndex = -1;
+  for (const keyword of keywords) {
+    if (!keyword) continue;
+    const found = normalized.indexOf(keyword);
+    if (found !== -1 && (matchIndex === -1 || found < matchIndex)) matchIndex = found;
+  }
+  if (matchIndex === -1) {
+    return `${normalized.slice(0, max)}…`;
+  }
+
+  const half = Math.floor(max / 2);
+  const start = Math.max(0, Math.min(matchIndex - half, normalized.length - max));
+  const end = Math.min(normalized.length, start + max);
+  const prefix = start > 0 ? "…" : "";
+  const suffix = end < normalized.length ? "…" : "";
+  return `${prefix}${normalized.slice(start, end)}${suffix}`;
 }
 
 function walk(root, current, depth, maxDepth, files) {
@@ -46,7 +78,7 @@ function walk(root, current, depth, maxDepth, files) {
   }
 }
 
-export function discoverReferenceDocuments(referenceDir, options = {}) {
+export async function discoverReferenceDocuments(referenceDir, options = {}) {
   const maxFiles = Math.max(1, Math.min(Number(options.maxFiles) || 50, 500));
   const maxBytes = Math.max(1024, Math.min(Number(options.maxBytes) || 5 * 1024 * 1024, 50 * 1024 * 1024));
   const maxDepth = Math.max(0, Math.min(Number(options.maxDepth) || 3, 8));
@@ -65,7 +97,8 @@ export function discoverReferenceDocuments(referenceDir, options = {}) {
     try {
       const stat = statSync(filePath);
       if (!stat.isFile() || stat.size <= 0 || stat.size > maxBytes) continue;
-      const raw = readFileSync(filePath, "utf8");
+      const isPdf = extname(filePath).toLowerCase() === ".pdf";
+      const raw = isPdf ? await extractPdfText(readFileSync(filePath)) : readFileSync(filePath, "utf8");
       const rel = relative(root, filePath).replace(/\\/g, "/");
       const sections = parseReferenceSections(raw);
       const firstHeading = sections.find((section) => section.title !== "(서두)")?.title;
@@ -126,7 +159,7 @@ export function searchReferenceDocuments(documents, query, options = {}) {
         domain_keys: docDomainKeys,
         domain_labels: doc.domain_labels || [doc.domain_label],
         section: section.title,
-        quote: compact(section.content || section.title, options.compact === false ? 1400 : 700),
+        quote: compact(section.content || section.title, keywords, options.compact === false ? 1400 : 700),
         relevance_score: score,
         citation_note: "로컬 참고자료입니다. 발행기관·판·개정일과 원문을 별도 확인한 뒤 공식 근거로 사용하세요.",
       });

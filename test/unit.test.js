@@ -181,14 +181,14 @@ test('global evidence budget is enforced while preserving source diversity', () 
   assert.deepEqual(budgeted.interpretations, ['i1']);
 });
 
-test('generic reference discovery and search work across engineering domains', () => {
+test('generic reference discovery and search work across engineering domains', async () => {
   const root = mkdtempSync(join(tmpdir(), 'kemcp-ref-'));
   mkdirSync(join(root, '도로'), { recursive: true });
   mkdirSync(join(root, '공항'), { recursive: true });
   writeFileSync(join(root, '도로', '도로포장.md'), '# 도로포장 지침\n## 배수성 포장\n포장 배수와 미끄럼 저항을 검토한다.', 'utf8');
   writeFileSync(join(root, '공항', '활주로.txt'), '# 활주로 참고자료\n활주로 길이와 안전구역을 검토한다.', 'utf8');
 
-  const docs = discoverReferenceDocuments(root, { maxFiles: 10, maxBytes: 1024 * 1024, maxDepth: 3 });
+  const docs = await discoverReferenceDocuments(root, { maxFiles: 10, maxBytes: 1024 * 1024, maxDepth: 3 });
   assert.equal(docs.length, 2);
   assert.ok(docs.some((doc) => doc.domain_key === 'road'));
   assert.ok(docs.some((doc) => doc.domain_key === 'airport'));
@@ -198,6 +198,48 @@ test('generic reference discovery and search work across engineering domains', (
   assert.ok(results.length >= 1);
   assert.equal(results[0].domain_key, 'road');
   assert.equal(results[0].trust_level, 'local_reference_unverified');
+});
+
+// pdf-parse는 손상된 xref 테이블도 폴백 파싱으로 복구하므로, 최소 유효 PDF를
+// 손으로 만들어도 텍스트 추출이 된다 (실제 pdf-parse@2.4.5로 검증됨).
+function buildMinimalPdf(text) {
+  return Buffer.from(
+    `%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/Resources<</Font<</F1 4 0 R>>>>/MediaBox[0 0 300 144]/Contents 5 0 R>>endobj\n4 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n5 0 obj<</Length ${text.length + 20}>>\nstream\nBT /F1 12 Tf 10 100 Td (${text}) Tj ET\nendstream\nendobj\ntrailer<</Size 6/Root 1 0 R>>\n%%EOF`,
+    'latin1',
+  );
+}
+
+test('discoverReferenceDocuments extracts searchable text from PDF reference files', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'kemcp-ref-pdf-'));
+  writeFileSync(join(root, '표준품셈-2026.pdf'), buildMinimalPdf('Excavation backhoe 0.4 item exists in this edition'));
+
+  const docs = await discoverReferenceDocuments(root, { maxFiles: 10, maxBytes: 1024 * 1024, maxDepth: 1 });
+  assert.equal(docs.length, 1);
+  assert.match(docs[0].sections.map((s) => s.content).join('\n'), /backhoe 0\.4/);
+
+  const results = searchReferenceDocuments(docs, 'backhoe 0.4', { maxResults: 5 });
+  assert.equal(results.length, 1);
+  assert.match(results[0].quote, /backhoe 0\.4/);
+});
+
+test('searchReferenceDocuments returns a keyword-centered snippet instead of always the start of a long section', () => {
+  const filler = '문단 '.repeat(400); // 700자 기본 한도를 넘기기 위한 채움 텍스트
+  const needle = '굴착 백호0.4 항목이 이 위치에 존재한다';
+  const longContent = `${filler}${needle}${filler}`;
+  const docs = [{
+    id: 'doc-1',
+    title: '표준품셈',
+    relative_path: '표준품셈.pdf',
+    domain_key: 'general',
+    domain_label: '공통',
+    domain_keys: ['general'],
+    domain_labels: ['공통'],
+    sections: [{ title: '(서두)', content: longContent }],
+  }];
+
+  const results = searchReferenceDocuments(docs, '백호0.4', { maxResults: 5 });
+  assert.equal(results.length, 1);
+  assert.match(results[0].quote, /백호0\.4/);
 });
 
 test('HTML renderer preserves report structure while escaping untrusted raw HTML and unsafe links', () => {
