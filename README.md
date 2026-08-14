@@ -78,8 +78,14 @@ Claude, Hermes, OpenClaw, Antigravity, VS Code/Copilot/Cline/Cursor 계열 등 M
 
 ### 로컬 참고자료
 
-- `search_reference_documents` — `REFERENCE_DIR`의 전 분야 Markdown/TXT/PDF 검색. 표준품셈처럼 매년 개정되는 PDF를 넣어두면 특정 품목(예: "굴착 백호0.4")이 현재판에 남아있는지 키워드로 확인 가능 (연도별 비교·삭제항목 자동 탐지는 아님)
+- `search_reference_documents` — `REFERENCE_DIR`에 사용자가 직접 등록한 전 분야 Markdown/TXT/PDF 검색
 - `search_design_manual` — 기존 상수도/하수도 해설편 파일명 방식의 하위호환 도구
+
+### 표준품셈 (설정 불필요)
+
+- `search_standard_estimation` — 건설공사 표준품셈(국토교통부·한국건설기술연구원)에서 키워드 검색. API 키나 `REFERENCE_DIR` 설정 없이 동작하며, 첫 호출 시 CODIL(codil.or.kr) 공식 게시판에서 최신판 원문 PDF를 자동으로 받아 `~/.korean-engineering-mcp/standard-estimation/`에 캐시(기본 24시간)한다. 특정 품목(예: "굴착 백호0.4")이 **현재판에 있는지만** 확인 가능하며, 과거판 대비 삭제·변경 여부 비교는 지원하지 않는다 — 필요하면 과거판 PDF를 `REFERENCE_DIR`에 별도로 넣고 `search_reference_documents`로 직접 비교
+  - 캐시 위치는 `STANDARD_ESTIMATION_CACHE_DIR`, 캐시 유효기간은 `STANDARD_ESTIMATION_CHECK_TTL_MS`(기본 86400000 = 24시간) 환경변수로 조정 가능
+  - CODIL 서버가 인증서 체인을 불완전하게 제공하는 문제가 있어(Node 기본 fetch로는 접속 실패) AIA(Authority Info Access)를 따라가 자동으로 보완한다
 
 ### HTML 문서
 

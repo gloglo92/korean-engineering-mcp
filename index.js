@@ -2,9 +2,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join, resolve } from "path";
+import { homedir } from "os";
+import http from "node:http";
+import https from "node:https";
+import tls from "node:tls";
 import {
   buildDomainSearchPlan,
   classifyEngineeringDomains,
@@ -15,9 +19,18 @@ import {
 } from "./src/domains.js";
 import {
   discoverReferenceDocuments,
+  extractPdfText,
   searchReferenceDocuments,
 } from "./src/references.js";
 import { evaluateCitation } from "./src/citations.js";
+import {
+  CODIL_LIST_URL,
+  codilDetailUrl,
+  derCertificateToPem,
+  parseAttachmentLinks,
+  parseLatestStandardEstimationEntry,
+  selectOriginalDocumentAttachment,
+} from "./src/standard-estimation.js";
 import {
   renderEngineeringAnswerHtml,
   sanitizeHtmlFilename,
@@ -64,6 +77,15 @@ const LAW_KEY  = process.env.LAW_API_KEY  || "";
 const KCSC_BASE = "https://kcsc.re.kr/OpenApi";
 const LAW_BASE  = "https://www.law.go.kr/DRF";
 const FETCH_TIMEOUT_MS = Number(process.env.FETCH_TIMEOUT_MS) || 15000;
+
+// ── 표준품셈 자동 캐시 (설정 없이 동작, REFERENCE_DIR과 무관) ────
+// KCSC_API_KEY/LAW_API_KEY 같은 발급 절차 없이 누가 어디서 이 MCP를 설치하든
+// 동일하게 동작하도록, 사용자 홈 디렉터리 아래 전용 캐시 폴더를 기본값으로 둔다.
+const STANDARD_ESTIMATION_CACHE_DIR = process.env.STANDARD_ESTIMATION_CACHE_DIR
+  || join(homedir(), ".korean-engineering-mcp", "standard-estimation");
+const STANDARD_ESTIMATION_TEXT_FILENAME = "표준품셈-원문.txt";
+const STANDARD_ESTIMATION_META_FILENAME = "metadata.json";
+const STANDARD_ESTIMATION_CHECK_TTL_MS = Number(process.env.STANDARD_ESTIMATION_CHECK_TTL_MS) || 24 * 60 * 60 * 1000;
 
 // ── 로컬 설계기준 해설편 ──────────────────────────────────────
 const REFERENCE_DIR = process.env.REFERENCE_DIR || __dirname;
@@ -126,6 +148,160 @@ async function fetchWithTimeout(url) {
       throw new Error(`외부 API 응답 시간 초과 (${FETCH_TIMEOUT_MS}ms)`);
     }
     throw error;
+  }
+}
+
+// ── TLS 체인 보완 fetch (CODIL 전용) ────────────────────────────
+// codil.or.kr은 리프 인증서만 보내고 중간 인증서를 생략하는 서버 설정 오류가 있어
+// Node의 기본 fetch는 UNABLE_TO_VERIFY_LEAF_SIGNATURE로 실패한다. 브라우저/curl은
+// AIA(Authority Info Access)를 따라가 누락분을 자동으로 보완하는데, 이를 최소
+// 구현한다. 한 번 보완한 에이전트는 프로세스 생존 기간 동안 재사용한다.
+let cachedChainRepairAgent = null;
+
+function fetchBinary(url) {
+  const client = url.startsWith("http://") ? http : https;
+  return new Promise((resolvePromise, reject) => {
+    client.get(url, { timeout: FETCH_TIMEOUT_MS }, (res) => {
+      const chunks = [];
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () => resolvePromise(Buffer.concat(chunks)));
+      res.on("error", reject);
+    }).on("error", reject).on("timeout", function () { this.destroy(new Error("TLS 보완용 인증서 조회 시간 초과")); });
+  });
+}
+
+function getMissingIntermediateCertUrl(hostname) {
+  return new Promise((resolvePromise, reject) => {
+    const socket = tls.connect(443, hostname, { servername: hostname, rejectUnauthorized: false, timeout: FETCH_TIMEOUT_MS }, () => {
+      const cert = socket.getPeerCertificate(false);
+      const url = cert?.infoAccess?.["CA Issuers - URI"]?.[0];
+      socket.end();
+      if (url) resolvePromise(url);
+      else reject(new Error(`${hostname}의 인증서 체인을 보완할 정보(AIA)를 찾지 못했습니다.`));
+    });
+    socket.on("error", reject);
+    socket.on("timeout", () => socket.destroy(new Error("TLS 인증서 조회 시간 초과")));
+  });
+}
+
+async function buildChainRepairAgent(hostname) {
+  const aiaUrl = await getMissingIntermediateCertUrl(hostname);
+  const intermediateDer = await fetchBinary(aiaUrl);
+  const intermediatePem = derCertificateToPem(intermediateDer);
+  return new https.Agent({ ca: [...tls.rootCertificates, intermediatePem] });
+}
+
+// CODIL의 파일 다운로드 엔드포인트는 User-Agent가 없는 요청을 차단하고(정상
+// 응답 대신 사이트 자체 오류 페이지를 200 OK로 반환) Node의 fetch/https 기본
+// 요청에는 User-Agent가 붙지 않으므로 명시적으로 지정한다.
+function requestViaAgent(url, agent) {
+  return new Promise((resolvePromise, reject) => {
+    https.get(url, {
+      agent,
+      timeout: FETCH_TIMEOUT_MS,
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; korean-engineering-mcp)", Accept: "*/*" },
+    }, (res) => {
+      const chunks = [];
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () => {
+        const buffer = Buffer.concat(chunks);
+        resolvePromise({
+          ok: res.statusCode >= 200 && res.statusCode < 300,
+          status: res.statusCode,
+          text: async () => buffer.toString("utf-8"),
+          arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+        });
+      });
+      res.on("error", reject);
+    }).on("error", reject).on("timeout", function () { this.destroy(new Error(`외부 API 응답 시간 초과 (${FETCH_TIMEOUT_MS}ms)`)); });
+  });
+}
+
+async function fetchWithChainRepair(url) {
+  try {
+    return await fetchWithTimeout(url);
+  } catch (error) {
+    const isChainError = ["UNABLE_TO_VERIFY_LEAF_SIGNATURE", "SELF_SIGNED_CERT_IN_CHAIN", "DEPTH_ZERO_SELF_SIGNED_CERT"]
+      .includes(error?.cause?.code);
+    if (!isChainError) throw error;
+    if (!cachedChainRepairAgent) {
+      cachedChainRepairAgent = await buildChainRepairAgent(new URL(url).hostname);
+    }
+    return requestViaAgent(url, cachedChainRepairAgent);
+  }
+}
+
+// CODIL에서 최신 표준품셈 원문을 확인해 로컬 캐시(STANDARD_ESTIMATION_CACHE_DIR)를
+// 최신 상태로 유지한다. 캐시가 TTL 이내면 네트워크 호출 없이 그대로 반환하고,
+// 새로고침에 실패해도 기존 캐시가 있으면 stale 표시와 함께 그것을 반환한다(완전 실패는
+// 캐시가 아예 없을 때만).
+async function ensureLatestStandardEstimation({ forceRefresh = false } = {}) {
+  const metaPath = join(STANDARD_ESTIMATION_CACHE_DIR, STANDARD_ESTIMATION_META_FILENAME);
+  const textPath = join(STANDARD_ESTIMATION_CACHE_DIR, STANDARD_ESTIMATION_TEXT_FILENAME);
+
+  let meta = null;
+  if (existsSync(metaPath)) {
+    try {
+      meta = JSON.parse(readFileSync(metaPath, "utf-8"));
+    } catch {
+      meta = null;
+    }
+  }
+
+  const cacheIsFresh = !forceRefresh && meta && existsSync(textPath)
+    && (Date.now() - new Date(meta.checked_at).getTime() < STANDARD_ESTIMATION_CHECK_TTL_MS);
+  if (cacheIsFresh) return { ...meta, refreshed: false, stale: false };
+
+  try {
+    const listRes = await fetchWithChainRepair(CODIL_LIST_URL);
+    if (!listRes.ok) throw new Error(`CODIL 목록 조회 실패: HTTP ${listRes.status}`);
+    const entry = parseLatestStandardEstimationEntry(await listRes.text());
+    if (!entry) throw new Error("CODIL 게시판에서 표준품셈 게시물을 찾지 못했습니다.");
+
+    mkdirSync(STANDARD_ESTIMATION_CACHE_DIR, { recursive: true });
+
+    // 목록의 최신 게시물이 캐시된 것과 동일하면(같은 nttId) 재다운로드 없이
+    // checked_at만 갱신한다.
+    if (!forceRefresh && meta?.source_ntt_id === entry.nttId && existsSync(textPath)) {
+      const refreshedMeta = { ...meta, checked_at: new Date().toISOString() };
+      writeFileSync(metaPath, JSON.stringify(refreshedMeta, null, 2), "utf-8");
+      return { ...refreshedMeta, refreshed: false, stale: false };
+    }
+
+    const detailRes = await fetchWithChainRepair(codilDetailUrl(entry.nttId));
+    if (!detailRes.ok) throw new Error(`CODIL 상세 조회 실패: HTTP ${detailRes.status}`);
+    const attachments = parseAttachmentLinks(await detailRes.text());
+    const chosen = selectOriginalDocumentAttachment(attachments);
+    if (!chosen) throw new Error("표준품셈 원문 PDF 첨부파일을 찾지 못했습니다.");
+
+    const pdfRes = await fetchWithChainRepair(chosen.url);
+    if (!pdfRes.ok) throw new Error(`표준품셈 PDF 다운로드 실패: HTTP ${pdfRes.status}`);
+    const pdfBuffer = Buffer.from(await pdfRes.arrayBuffer());
+    if (pdfBuffer.subarray(0, 5).toString("latin1") !== "%PDF-") {
+      // CODIL이 요청을 차단하면 200 OK와 함께 자체 오류 페이지(HTML)를 대신 반환한다.
+      throw new Error("CODIL이 PDF 대신 다른 응답(오류 페이지 등)을 반환했습니다. 잠시 후 다시 시도하세요.");
+    }
+    const text = await extractPdfText(pdfBuffer);
+    if (!text.trim()) throw new Error("표준품셈 PDF에서 텍스트를 추출하지 못했습니다.");
+
+    writeFileSync(textPath, text, "utf-8");
+    const newMeta = {
+      title: entry.title,
+      source_ntt_id: entry.nttId,
+      source_date: entry.date,
+      source_detail_url: codilDetailUrl(entry.nttId),
+      source_file_url: chosen.url,
+      source_filename: chosen.filename,
+      fetched_at: new Date().toISOString(),
+      checked_at: new Date().toISOString(),
+    };
+    writeFileSync(metaPath, JSON.stringify(newMeta, null, 2), "utf-8");
+    return { ...newMeta, refreshed: true, stale: false };
+  } catch (error) {
+    if (meta && existsSync(textPath)) {
+      return { ...meta, refreshed: false, stale: true, refresh_error: error.message };
+    }
+    throw new Error(`표준품셈 원문을 확보하지 못했습니다: ${error.message}`);
   }
 }
 
@@ -686,7 +862,7 @@ server.tool(
 
 server.tool(
   "search_reference_documents",
-  "REFERENCE_DIR에 등록한 전 분야 Markdown/TXT/PDF 참고자료를 분야·섹션 단위로 검색합니다. 표준품셈처럼 연도별로 개정되는 PDF도 등록해두면 특정 항목이 현재판에 있는지 키워드로 확인할 수 있습니다. 로컬 자료는 보조 근거이며 발행기관·판·개정일을 확인해야 합니다.",
+  "REFERENCE_DIR에 사용자가 직접 등록한 전 분야 Markdown/TXT/PDF 참고자료를 분야·섹션 단위로 검색합니다. 국가 표준품셈은 설정 없이 search_standard_estimation을 사용하세요. 로컬 자료는 보조 근거이며 발행기관·판·개정일을 확인해야 합니다.",
   {
     query: z.string().min(2).max(2000).describe("참고자료 검색어"),
     domain: z.string().default("auto").describe("auto 또는 분야 key/한글명"),
@@ -707,6 +883,52 @@ server.tool(
       domain,
       results,
       warning: "로컬 참고자료는 비공식·구판일 수 있으므로 법령/KDS/KCS보다 우선하지 말고 원문 메타데이터를 확인하세요.",
+    };
+    return {
+      content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],
+      structuredContent: payload,
+    };
+  },
+);
+
+server.tool(
+  "search_standard_estimation",
+  "건설공사 표준품셈(국토교통부·한국건설기술연구원)에서 키워드를 검색합니다. 별도 API 키나 REFERENCE_DIR 설정 없이 동작하며, 처음 호출 시 CODIL(codil.or.kr) 공식 게시판에서 최신판 원문 PDF를 자동으로 내려받아 로컬에 캐시하고(기본 24시간 캐시), 이후 호출은 캐시를 재사용합니다. 특정 품목(예: 굴착 백호0.4)이 '현재판에 존재하는지'만 확인하며, 과거판 대비 삭제·변경 여부 비교는 지원하지 않습니다 — 필요하면 REFERENCE_DIR에 과거판 PDF를 추가로 등록해 search_reference_documents로 직접 비교하세요.",
+  {
+    query: z.string().min(1).max(300).describe("검색 키워드 (예: 굴착 백호0.4, 철근콘크리트 타설)"),
+    max_results: z.number().int().min(1).max(20).default(5).describe("최대 결과 수"),
+    force_refresh: z.boolean().default(false).describe("24시간 캐시를 무시하고 CODIL에서 즉시 다시 확인할지 여부"),
+  },
+  async ({ query, max_results, force_refresh }) => {
+    let source;
+    try {
+      source = await ensureLatestStandardEstimation({ forceRefresh: force_refresh });
+    } catch (error) {
+      const payload = {
+        error: error.message,
+        hint: "CODIL(https://www.codil.or.kr) 접속이 막혀 있고 캐시도 없는 상태입니다. REFERENCE_DIR에 표준품셈 PDF를 직접 넣고 search_reference_documents를 사용하세요.",
+      };
+      return { isError: true, content: [{ type: "text", text: JSON.stringify(payload, null, 2) }] };
+    }
+
+    const docs = await discoverReferenceDocuments(STANDARD_ESTIMATION_CACHE_DIR, {
+      maxFiles: 3,
+      maxBytes: 80 * 1024 * 1024,
+      maxDepth: 1,
+    });
+    const results = searchReferenceDocuments(docs, query, { domain: "auto", maxResults: max_results });
+    const payload = {
+      source: {
+        title: source.title,
+        source_date: source.source_date,
+        source_detail_url: source.source_detail_url,
+        fetched_at: source.fetched_at,
+        stale: Boolean(source.stale),
+        refresh_error: source.refresh_error,
+      },
+      query,
+      results,
+      usage_note: "존재 여부 확인용입니다. 결과가 없다고 해서 항목이 삭제됐다고 단정하지 말고(용어가 다를 수 있음) 원문을 직접 확인하세요.",
     };
     return {
       content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],

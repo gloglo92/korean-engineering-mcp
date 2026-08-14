@@ -43,6 +43,13 @@ const {
 } = await import('../src/citations.js');
 
 const {
+  parseLatestStandardEstimationEntry,
+  parseAttachmentLinks,
+  selectOriginalDocumentAttachment,
+  derCertificateToPem,
+} = await import('../src/standard-estimation.js');
+
+const {
   hashSkillDirectory,
   syncBundledSkill,
 } = await import('../scripts/sync-skill.mjs');
@@ -482,4 +489,94 @@ test('evaluateCitation returns ambiguous when top candidates tie in score', () =
   const result = evaluateCitation(citation, candidates);
   assert.equal(result.status, 'ambiguous');
   assert.equal(result.alternatives.length, 2);
+});
+
+// codil.or.kr 게시판 실제 응답 구조를 축약 재현한 픽스처 (2026-07 확인).
+const CODIL_LIST_FIXTURE = `
+<tbody>
+  <tr style="cursor:pointer;" onclick="document.location.href='/helpdesk/read.do;jsessionid=abc.codil_servlet_engine1?bbsId=BBSMSTR_900000000202&nttId=13261&searchWrd='">
+    <td>25</td>
+    <td class="title">
+      2026년 건설공사 표준품셈
+      <span style="FONT-WEIGHT: bold; COLOR: red"></span>
+    </td>
+    <td>관리자</td>
+    <td >2026-01-02</td>
+    <td >115339</td>
+  </tr>
+  <tr style="cursor:pointer;" onclick="document.location.href='/helpdesk/read.do;jsessionid=abc.codil_servlet_engine1?bbsId=BBSMSTR_900000000202&nttId=13212&searchWrd='">
+    <td>24</td>
+    <td class="title">
+      2025년 하반기 적용 건설공사 표준품셈
+      <span style="FONT-WEIGHT: bold; COLOR: red"></span>
+    </td>
+    <td>관리자</td>
+    <td >2025-08-05</td>
+    <td >24768</td>
+  </tr>
+</tbody>`;
+
+const CODIL_DETAIL_FIXTURE = `
+<ul class="file_list">
+  <li class="file" style="margin-left: 10px;">
+    <a href="/filebank/files/202601/helpdesk/BBS_202601021022218410.pdf?atchFileId=FILE_000000000011032&fileSn=0" target="_blank">
+    1._(공고문)_2026년_적용_건설공사_표준품셈_개정_공고.pdf&nbsp;[105.8 Kbyte]
+    </a>
+  </li>
+  <li class="file" style="margin-left: 10px;">
+    <a href="/filebank/files/202601/helpdesk/BBS_202601021022219232.pdf?atchFileId=FILE_000000000011032&fileSn=2" target="_blank">
+    3._(공고자료)_2026년_건설공사_표준품셈_개정사항.pdf&nbsp;[3.3 Mbyte]
+    </a>
+  </li>
+  <li class="file" style="margin-left: 10px;">
+    <a href="/filebank/files/202601/helpdesk/FILE_000000000011032_3.PDF?atchFileId=FILE_000000000011032&fileSn=3" target="_blank">
+    2026 건설공사표준품셈_원문(정오표1차 반영).pdf&nbsp;[6.7 Mbyte]
+    </a>
+  </li>
+  <li class="file" style="margin-left: 10px;">
+    <a href="/filebank/files/202601/helpdesk/FILE_000000000011032_4.PDF?atchFileId=FILE_000000000011032&fileSn=4" target="_blank">
+    2026년_건설공사표준품셈_개정사항_정오표1차.pdf&nbsp;[68.5 Kbyte]
+    </a>
+  </li>
+</ul>`;
+
+test('parseLatestStandardEstimationEntry finds the newest board entry whose title contains 품셈', () => {
+  const entry = parseLatestStandardEstimationEntry(CODIL_LIST_FIXTURE);
+  assert.deepEqual(entry, { nttId: '13261', title: '2026년 건설공사 표준품셈', date: '2026-01-02' });
+});
+
+test('parseLatestStandardEstimationEntry returns null when no row matches', () => {
+  assert.equal(parseLatestStandardEstimationEntry('<tbody></tbody>'), null);
+});
+
+test('parseAttachmentLinks extracts only PDF attachments with filename and parsed size', () => {
+  const attachments = parseAttachmentLinks(CODIL_DETAIL_FIXTURE);
+  assert.equal(attachments.length, 4);
+  assert.equal(attachments[2].filename, '2026 건설공사표준품셈_원문(정오표1차 반영).pdf');
+  assert.match(attachments[2].url, /^https:\/\/www\.codil\.or\.kr\/filebank/);
+  assert.equal(attachments[2].size_text, '6.7 Mbyte');
+  assert.ok(attachments[2].size_bytes > attachments[0].size_bytes);
+});
+
+test('selectOriginalDocumentAttachment prefers the file named 원문 over larger unrelated attachments', () => {
+  const attachments = parseAttachmentLinks(CODIL_DETAIL_FIXTURE);
+  const chosen = selectOriginalDocumentAttachment(attachments);
+  assert.equal(chosen.filename, '2026 건설공사표준품셈_원문(정오표1차 반영).pdf');
+});
+
+test('selectOriginalDocumentAttachment falls back to the largest PDF when nothing is named 원문', () => {
+  const attachments = [
+    { filename: 'a.pdf', size_bytes: 100, url: 'https://example.test/a.pdf' },
+    { filename: 'b.pdf', size_bytes: 900, url: 'https://example.test/b.pdf' },
+  ];
+  assert.equal(selectOriginalDocumentAttachment(attachments).filename, 'b.pdf');
+  assert.equal(selectOriginalDocumentAttachment([]), null);
+});
+
+test('derCertificateToPem wraps base64 DER bytes in a standard PEM certificate block', () => {
+  const der = Buffer.from('not-a-real-certificate-but-long-enough-to-wrap-across-multiple-lines-of-output');
+  const pem = derCertificateToPem(der);
+  assert.match(pem, /^-----BEGIN CERTIFICATE-----\n/);
+  assert.match(pem, /\n-----END CERTIFICATE-----\n$/);
+  assert.equal(Buffer.from(pem.replace(/-----[^-]+-----/g, '').replace(/\s+/g, ''), 'base64').toString(), der.toString());
 });

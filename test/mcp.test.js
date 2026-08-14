@@ -46,6 +46,7 @@ test('MCP stdio discovery exposes legacy and new tools', async () => {
       'search_ordinances',
       'get_ordinance_detail',
       'verify_citations',
+      'search_standard_estimation',
       'grounded_engineering_research',
       'list_engineering_domains',
       'classify_engineering_domain',
@@ -54,7 +55,7 @@ test('MCP stdio discovery exposes legacy and new tools', async () => {
     ]) {
       assert.ok(names.has(name), name);
     }
-    assert.ok(names.size >= 17);
+    assert.ok(names.size >= 18);
     const htmlTool = listed.tools.find((tool) => tool.name === 'render_engineering_answer_html');
     assert.ok(htmlTool.inputSchema.required.includes('user_confirmed_html'));
     assert.match(htmlTool.description, /요청했거나.*동의한 경우에만/);

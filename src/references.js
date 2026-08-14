@@ -5,7 +5,7 @@ import { classifyEngineeringDomains, getEngineeringDomain, meaningfulKeywords } 
 
 const SUPPORTED_EXTENSIONS = new Set([".md", ".markdown", ".txt", ".pdf"]);
 
-async function extractPdfText(buffer) {
+export async function extractPdfText(buffer) {
   const parser = new PDFParse({ data: buffer });
   try {
     const result = await parser.getText();
