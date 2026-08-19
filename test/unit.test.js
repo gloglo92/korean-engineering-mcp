@@ -580,3 +580,69 @@ test('derCertificateToPem wraps base64 DER bytes in a standard PEM certificate b
   assert.match(pem, /\n-----END CERTIFICATE-----\n$/);
   assert.equal(Buffer.from(pem.replace(/-----[^-]+-----/g, '').replace(/\s+/g, ''), 'base64').toString(), der.toString());
 });
+
+// ── 표준품셈(PDF→TXT) 검색 결함 회귀 테스트 ──────────────────────
+// 실제 2026년 표준품셈 원문에서 드러난 결함들. 캐시된 원문은 2MB/49,217행이며
+// 목차(점선 리더)가 본문보다 앞서고, 철도 분기기 표의 '# 8 …' 행이 마크다운
+// 헤딩으로 오인되어 문서 전체가 (서두) 한 덩어리로 뭉개졌다.
+
+const 품셈_목차 = [
+  '제4장 조경공사 91',
+  '4-1 잔디 및 초화류 ······························91',
+  '4-1-1 \t잔디붙임 \t································································91',
+  '4-1-2 \t판형잔디붙임 \t··························································91',
+].join('\n');
+
+const 품셈_본문 = [
+  '4-1-1 \t잔디붙임(\'06, \t\'13, \t\'19, \t\'24년 \t보완)',
+  '(일당)',
+  '구 \t분 \t단 \t위 \t수 \t량 시공량(㎡)',
+  '줄떼 \t평떼',
+  '조 \t경 \t공 \t인 \t1 170 \t150',
+  '보 \t통 \t인 \t부 \t인 \t4',
+  '[주] \t① \t본 \t품은 \t재배잔디를 \t붙이는 \t기준이다.',
+].join('\n');
+
+// 철도 분기기 번호(#8, #10)가 줄머리에 오는 실제 표 행
+const 분기기_표 = '# 8 \t분 기 기 궤 \t도 \t공 \t인 \t37 \t35';
+
+function 품셈문서(root) {
+  writeFileSync(
+    join(root, '표준품셈-원문.txt'),
+    `${품셈_목차}\n${'채움 '.repeat(500)}\n${품셈_본문}\n${분기기_표}\n`,
+    'utf8',
+  );
+}
+
+test('표준품셈 검색은 목차가 아니라 실제 품 표 본문을 인용한다', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'kemcp-est-toc-'));
+  품셈문서(root);
+
+  const docs = await discoverReferenceDocuments(root, { maxFiles: 3, maxBytes: 8 * 1024 * 1024, maxDepth: 1 });
+  const results = searchReferenceDocuments(docs, '잔디붙임', { maxResults: 5 });
+
+  assert.ok(results.length >= 1, '검색 결과가 있어야 한다');
+  const quote = results[0].quote;
+  assert.doesNotMatch(quote, /·{5,}/, '목차의 점선 리더가 인용문에 들어가면 안 된다');
+  assert.match(quote, /조 ?경 ?공|보 ?통 ?인 ?부|170/, '실제 품 표 내용을 인용해야 한다');
+});
+
+test('표준품셈 텍스트는 절 번호 단위로 섹션이 분해된다', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'kemcp-est-sec-'));
+  품셈문서(root);
+
+  const docs = await discoverReferenceDocuments(root, { maxFiles: 3, maxBytes: 8 * 1024 * 1024, maxDepth: 1 });
+  const results = searchReferenceDocuments(docs, '잔디붙임', { maxResults: 5 });
+
+  assert.notEqual(results[0].section, '(서두)', '문서 전체가 (서두) 한 덩어리면 안 된다');
+  assert.match(results[0].section, /4-1-1/, '섹션 제목이 해당 절 번호여야 한다');
+});
+
+test('본문의 # 로 시작하는 표 행을 마크다운 헤딩으로 오인하지 않는다', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'kemcp-est-hash-'));
+  품셈문서(root);
+
+  const docs = await discoverReferenceDocuments(root, { maxFiles: 3, maxBytes: 8 * 1024 * 1024, maxDepth: 1 });
+  assert.equal(docs.length, 1);
+  assert.doesNotMatch(docs[0].title, /분 ?기 ?기/, '분기기 표 행이 문서 제목이 되면 안 된다');
+});

@@ -916,7 +916,10 @@ server.tool(
       maxBytes: 80 * 1024 * 1024,
       maxDepth: 1,
     });
-    const results = searchReferenceDocuments(docs, query, { domain: "auto", maxResults: max_results });
+    // 캐시 파일명(표준품셈-원문)이 아니라 CODIL 게시물 제목("2026년 건설공사 표준품셈")을
+    // 문서 제목으로 노출한다. 인용 시 몇 년판인지 바로 드러나야 한다.
+    const results = searchReferenceDocuments(docs, query, { domain: "auto", maxResults: max_results })
+      .map((item) => ({ ...item, document_title: source.title || item.document_title }));
     const payload = {
       source: {
         title: source.title,
