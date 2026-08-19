@@ -318,16 +318,60 @@ async function fetchKCSC(path) {
   return res.json();
 }
 
+// 목록도 디스크에 캐시한다. 메모리 캐시(1시간)뿐이면 KCSC API 불통 시 본문
+// 캐시 49MB가 멀쩡해도 목록을 못 받아 검색 전체가 불능이 된다. 신선하면(24시간)
+// API를 건너뛰고, API가 실패하면 낡은 캐시라도 stale로 쓴다.
+const CODELIST_DISK_TTL_MS = Number(process.env.CODELIST_DISK_TTL_MS) || 24 * 60 * 60 * 1000;
+const CODELIST_CACHE_PATH = process.env.CODELIST_CACHE_PATH
+  || join(homedir(), ".korean-engineering-mcp", "code-list.json");
+
+export function readCodeListDiskCache(path = CODELIST_CACHE_PATH) {
+  try {
+    const raw = JSON.parse(readFileSync(path, "utf8"));
+    if (Array.isArray(raw.list) && raw.list.length) {
+      return { list: raw.list, fetchedAt: raw.fetched_at || 0 };
+    }
+  } catch {
+    // 캐시 없음/손상 → 없는 것으로 취급
+  }
+  return null;
+}
+
+export function writeCodeListDiskCache(list, path = CODELIST_CACHE_PATH) {
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, JSON.stringify({ fetched_at: Date.now(), list }), "utf8");
+    return true;
+  } catch {
+    return false; // 캐시 기록 실패가 검색을 막지 않는다
+  }
+}
+
 // 전체 기준 목록은 크고 자주 쓰이므로 TTL 캐시 적용
 async function getCodeList() {
   const now = Date.now();
   if (codeListCache.data && now - codeListCache.fetchedAt < CODELIST_CACHE_TTL_MS) {
     return codeListCache.data;
   }
-  const data = await fetchKCSC("/CodeList");
-  const list = Array.isArray(data) ? data : [];
-  codeListCache = { data: list, fetchedAt: now };
-  return list;
+  const disk = readCodeListDiskCache();
+  if (disk && now - disk.fetchedAt < CODELIST_DISK_TTL_MS) {
+    codeListCache = { data: disk.list, fetchedAt: now };
+    return disk.list;
+  }
+  try {
+    const data = await fetchKCSC("/CodeList");
+    const list = Array.isArray(data) ? data : [];
+    if (list.length) writeCodeListDiskCache(list);
+    codeListCache = { data: list, fetchedAt: now };
+    return list;
+  } catch (error) {
+    if (disk) {
+      // KCSC 불통 — TTL이 지난 캐시라도 검색을 세우는 것보다 낫다
+      codeListCache = { data: disk.list, fetchedAt: now };
+      return disk.list;
+    }
+    throw error;
+  }
 }
 
 // ── 법제처 API ────────────────────────────────────────────────

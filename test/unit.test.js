@@ -31,6 +31,8 @@ const {
   rankStandards,
   countFlexible,
   expandSearchTerms,
+  readCodeListDiskCache,
+  writeCodeListDiskCache,
 } = await import('../index.js');
 
 const {
@@ -739,4 +741,30 @@ test('동의어가 없는 검색어는 그대로 둔다', () => {
 test('동의어 확장은 중복 없이 이루어진다', () => {
   const r = expandSearchTerms(['경계석', '연석']);
   assert.equal(new Set(r).size, r.length, '중복 항목이 없어야 한다');
+});
+
+
+// ── 기준 목록(/CodeList) 디스크 캐시 ────────────────────────────
+// 본문 1,334건은 디스크에 캐시하면서 목록은 메모리(1시간)뿐이었다. KCSC API가
+// 불통이면 본문 캐시가 멀쩡해도 목록을 못 받아 검색 전체가 불능이 됐다.
+
+test('기준 목록 디스크 캐시를 기록하고 다시 읽는다', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'kemcp-codelist-'));
+  const path = join(dir, 'code-list.json');
+  const 목록 = [{ codeType: 'KDS', code: '346010', name: '보도포장', no: 1 }];
+  assert.equal(writeCodeListDiskCache(목록, path), true);
+  const cached = readCodeListDiskCache(path);
+  assert.ok(cached, '기록한 캐시를 읽을 수 있어야 한다');
+  assert.deepEqual(cached.list, 목록);
+  assert.ok(cached.fetchedAt > 0, '수집 시각이 함께 저장되어야 한다');
+});
+
+test('손상되거나 빈 목록 캐시는 없는 것으로 취급한다', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'kemcp-codelist-bad-'));
+  const path = join(dir, 'code-list.json');
+  writeFileSync(path, '{깨진 JSON', 'utf8');
+  assert.equal(readCodeListDiskCache(path), null, '손상 파일은 null');
+  writeFileSync(path, JSON.stringify({ fetched_at: 1, list: [] }), 'utf8');
+  assert.equal(readCodeListDiskCache(path), null, '빈 목록은 폴백 가치가 없으므로 null');
+  assert.equal(readCodeListDiskCache(join(dir, '없는파일.json')), null);
 });
